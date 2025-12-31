@@ -1,0 +1,18 @@
+// ======================================================== //
+
+//    EVENTO QUE REVISA EL CIERRE DE SESION DEL USUARIO 
+
+ // ======================================================== //
+
+
+* Importante Ejecutarlo en caso de reeconstrucción de Base de Datos.
+
+
+CREATE EVENT IF NOT EXISTS actualizar_sesiones_vencidas
+ON SCHEDULE EVERY 1 MINUTE
+DO
+    UPDATE sesiones_usuarios
+    SET estado = 0,
+        salida = CONVERT_TZ(NOW(), 'UTC', 'America/Bogota')
+    WHERE expira_en < CONVERT_TZ(NOW(), 'UTC', 'America/Bogota')
+      AND estado = 1;

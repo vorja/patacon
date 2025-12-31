@@ -1,0 +1,29 @@
+ #carouselTbl .carousel-item {
+    opacity: 0;
+    transition: opacity 0.8s ease-in-out;
+    position: absolute;
+    width: 100%;
+    top: 0;
+    left: 0;
+}
+
+#carouselTbl .carousel-item.active {
+    opacity: 1;
+    position: relative;
+} 
+.carousel {
+    width: 100%;
+    overflow: hidden;
+    position: relative;
+}
+
+.carousel-inner {
+    display: flex;
+    transition: transform 0.8s ease-in-out;
+    width: 200%; /* Dependerá de la cantidad de slides */
+}
+
+.carousel-item {
+    width: 100%;
+    flex: 0 0 100%;
+}

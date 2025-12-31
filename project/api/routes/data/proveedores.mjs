@@ -1,0 +1,44 @@
+import express from "express";
+import {
+  createProveedor,
+  getProveedores,
+  getProveedoresLista,
+  getProveedorById,
+  updateProveedor,
+  deleteProveedor,
+} from "../../controllers/data/proveedores.mjs";
+// Importamos la validaciones del Middleware.
+import {
+  validarProveedor,
+  validarProveedorId,
+} from "../../middlewares/validaciones/validacionesProveedor.mjs";
+// Importamos la Verificaciones de Token y Verificacion de Permisos.
+import { verificarACL } from "../../middlewares/acl.mjs";
+import { verificarToken } from "../../middlewares/auth/auth.mjs";
+const router = express.Router();
+router.use(verificarACL);
+
+router.post("/crear", verificarToken, validarProveedor, createProveedor);
+router.get("/obtener", verificarToken, getProveedores);
+router.get("/obtener-lista", verificarToken, getProveedoresLista);
+router.get(
+  "/obtener-id/:id",
+  verificarToken,
+  validarProveedorId,
+  getProveedorById
+);
+router.put(
+  "/editar/:id",
+  verificarToken,
+  validarProveedorId,
+  validarProveedor,
+  updateProveedor
+);
+router.delete(
+  "/eliminar/:id",
+  verificarToken,
+  validarProveedorId,
+  deleteProveedor
+);
+
+export default router;
