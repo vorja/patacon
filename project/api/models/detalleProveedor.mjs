@@ -7,7 +7,6 @@ import RegistroAreaFritura from "./registroAreaFritura.mjs";
 const DetalleProveedor = sequelize.define(
   "DetalleProveedor",
   {
-
     id: {
       type: DataTypes.INTEGER,
       autoIncrement: true,
@@ -53,6 +52,10 @@ const DetalleProveedor = sequelize.define(
       type: DataTypes.FLOAT,
       allowNull: false,
     },
+    bajadas: {
+      type: DataTypes.FLOAT,
+      allowNull: true,
+    },
     canastas: {
       type: DataTypes.INTEGER,
       allowNull: false,
@@ -65,7 +68,7 @@ const DetalleProveedor = sequelize.define(
   {
     tableName: "detalle_proveedor_fritura",
     timestamps: false,
-  }
+  },
 );
 
 DetalleProveedor.belongsTo(Proveedor, {

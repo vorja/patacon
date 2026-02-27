@@ -3,10 +3,11 @@ import { celebrate, Joi, Segments } from "celebrate";
 export const validarProduccion = celebrate({
   [Segments.BODY]: Joi.object().keys({
     lote_produccion: Joi.string().min(3).required(),
+    cliente_relacionado: Joi.string().allow(null, "").optional(),
     fecha_creacion: Joi.date().required(),
     fecha_cierre: Joi.date().optional(),
     numero_cajas: Joi.number().integer().min(1).required(),
-   /*  detalle: Joi.array(), */
+    /*  detalle: Joi.array(), */
     id_responsable: Joi.string().guid().required(),
   }),
 });

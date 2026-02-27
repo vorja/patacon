@@ -14,7 +14,11 @@ export const createRegistroTemperatura = async (req, res) => {
     const registro = await create(data);
 
     const hoy = new Date().toISOString().slice(0, 10); // Obtenemos el dia de Hoy
-    const parseoFecha = new Date(req.body.fecha);
+    
+    const parseoFecha = new Date(req.body.cuarto.fecha_registro);
+
+    console.log("fecha body: ",parseoFecha)
+    console.log("fecha hoy: ", hoy)
     const fecha = parseoFecha.toISOString().split("T")[0];
     if (fecha === hoy) {
       broadcastWS({

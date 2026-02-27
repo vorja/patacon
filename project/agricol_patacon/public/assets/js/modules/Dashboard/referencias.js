@@ -1,10 +1,9 @@
-import { AlertManager, ApiService } from "../../helpers/ApiUseManager.js";
+import { AlertManager, ApiService, Url } from "../../helpers/ApiUseManager.js";
 import eventManager from "../../helpers/EventsManager.js";
 import notificationManager from "../../helpers/NotificacionesManger.js";
 
-const API_REFERENCIAS = new ApiService(
-    "http://localhost:3105/data/referencias"
-);
+const API_REFERENCIAS = new ApiService(Url + "/data/referencias");
+
 const alerts = new AlertManager();
 
 const token = document

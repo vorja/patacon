@@ -1,11 +1,16 @@
+import { Url } from "../../helpers/ApiUseManager.js";
 import notificationManager from "../../helpers/NotificacionesManger.js";
+
 var today = new Date();
 var year = today.getFullYear();
-const token = document
-    .querySelector('meta[name="jwt"]')
-    .getAttribute("content");
 
-const url = `http://localhost:3105/data/dashboard/obtener-materia/${year}`;
+const token = document.querySelector('meta[name="jwt"]').getAttribute("content");
+
+const url = Url + `/data/dashboard/obtener-materia/${year}`;
+
+document.getElementById("ano1").textContent = year;
+document.getElementById("ano2").textContent = year;
+document.getElementById("ano3").textContent = year;
 
 const info_globlal = {
     cajasData: 0,
@@ -14,6 +19,7 @@ const info_globlal = {
     proveedorData: 0,
     materiaConenedores: 0,
 };
+
 let selectedCategory = null;
 let selectedTipoCajas = null;
 
@@ -95,7 +101,7 @@ function drawChart(data) {
                 .html(
                     `<strong>${
                         d.contenedor
-                    }</strong><br/>Valor: ${d.gasto.toLocaleString()}`
+                    }</strong><br/>Valor: ${d.gasto.toLocaleString()}`,
                 )
                 .style("left", event.pageX + 10 + "px")
                 .style("top", event.pageY - 28 + "px");
@@ -117,62 +123,6 @@ function drawChart(data) {
         .attr("text-anchor", "middle")
         .text("Gasto de Materia Prima");
 }
-/* 
-const hierarchicalData = {
-    name: "Total",
-    children: [
-        {
-            name: "C261225",
-            children: [
-                { name: "Recepcion", value: 30 },
-                { name: "Alistamiento", value: 200 },
-                { name: "Corte", value: 200 },
-                { name: "Fritura", value: 200 },
-                { name: "Empaque", value: 200 },
-            ],
-        },
-        {
-            name: "C271225",
-            children: [
-                { name: "Recepcion", value: 0 },
-                { name: "Alistamiento", value: 137.5 },
-                { name: "Corte", value: 137.5 },
-                { name: "Fritura", value: 137.5 },
-                { name: "Empaque", value: 137.5 },
-            ],
-        },
-        {
-            name: "C281225",
-            children: [
-                { name: "Recepcion", value: 0 },
-                { name: "Alistamiento", value: 162.5 },
-                { name: "Corte", value: 162.5 },
-                { name: "Fritura", value: 162.5 },
-                { name: "Empaque", value: 162.5 },
-            ],
-        },
-        {
-            name: "C291225",
-            children: [
-                { name: "Recepcion", value: 30 },
-                { name: "Alistamiento", value: 175 },
-                { name: "Corte", value: 175 },
-                { name: "Fritura", value: 175 },
-                { name: "Empaque", value: 175 },
-            ],
-        },
-        {
-            name: "C301225",
-            children: [
-                { name: "Recepcion", value: 0 },
-                { name: "Alistamiento", value: 150 },
-                { name: "Corte", value: 150 },
-                { name: "Fritura", value: 150 },
-                { name: "Empaque", value: 150 },
-            ],
-        },
-    ],
-}; */
 
 // ========================= //
 //   RECHAZO POR CONTENEDOR  //
@@ -191,7 +141,7 @@ function drawChartBarRechazo() {
         }));
     } else {
         const category = hierarchicalData.children.find(
-            (d) => d.name === selectedCategory
+            (d) => d.name === selectedCategory,
         );
         data = category
             ? category.children.map((d) => ({ ...d, isCategory: false }))
@@ -242,7 +192,7 @@ function drawChartBarRechazo() {
             d3.axisTop(x).tickFormat((d) => {
                 if (d >= 1000) return d / 1000 + "k";
                 return d;
-            })
+            }),
         )
         .selectAll("text")
         .attr("class", "axis-label");
@@ -290,7 +240,7 @@ function drawChartBarRechazo() {
                 .html(
                     `<strong>${
                         d.name
-                    }</strong><br/>Valor: ${d.value.toLocaleString()}`
+                    }</strong><br/>Valor: ${d.value.toLocaleString()}`,
                 )
                 .style("left", event.pageX + 10 + "px")
                 .style("top", event.pageY - 28 + "px");
@@ -333,45 +283,6 @@ function drawChartBarRechazo() {
 //   CAJAS POR CONTENEDOR    //
 // ========================= //
 
-/* const cajasData = {
-    name: "Total",
-    children: [
-        {
-            name: "C261225",
-            children: [
-                { name: "A", value: 2243 },
-                { name: "XL", value: 200 },
-            ],
-        },
-        {
-            name: "C271225",
-            children: [
-                { name: "A", value: 1600 },
-                { name: "XL", value: 100 },
-                { name: "B", value: 700 },
-            ],
-        },
-        {
-            name: "C281225",
-            children: [
-                { name: "A", value: 2250 },
-                { name: "CIL", value: 150 },
-            ],
-        },
-        {
-            name: "C291225",
-            children: [
-                { name: "A", value: 1900 },
-                { name: "C", value: 350 },
-            ],
-        },
-        {
-            name: "C301225",
-            children: [{ name: "A", value: 2430 }],
-        },
-    ],
-}; */
-
 function drawChartBarCajas() {
     const { cajasData } = info_globlal;
 
@@ -386,7 +297,7 @@ function drawChartBarCajas() {
         }));
     } else {
         const category = cajasData.children.find(
-            (d) => d.name === selectedTipoCajas
+            (d) => d.name === selectedTipoCajas,
         );
         data = category
             ? category.children.map((d) => ({ ...d, isCategory: false }))
@@ -437,7 +348,7 @@ function drawChartBarCajas() {
             d3.axisTop(x).tickFormat((d) => {
                 if (d >= 1000) return d / 1000 + "k";
                 return d;
-            })
+            }),
         )
         .selectAll("text")
         .attr("class", "axis-label");
@@ -478,7 +389,7 @@ function drawChartBarCajas() {
                 .html(
                     `<strong>${
                         d.name
-                    }</strong><br/>Valor: ${d.value.toLocaleString()}`
+                    }</strong><br/>Valor: ${d.value.toLocaleString()}`,
                 )
                 .style("left", event.pageX + 10 + "px")
                 .style("top", event.pageY - 28 + "px");
@@ -520,60 +431,7 @@ function drawChartBarCajas() {
 // =========================      //
 //   PROVEEDORES DE MATERIA PRIMA //
 // =========================     //
-/* const proveedorData = {
-    name: "Total",
-    materia: [
-        {
-            name: "Daniel Rodas",
-            materia: [
-                {
-                    value: 45200,
-                },
-            ],
-        },
-        {
-            name: "Frutales Quintero",
-            materia: [
-                {
-                    value: 58200,
-                },
-            ],
-        },
-        {
-            name: "Rigoberto",
-            materia: [
-                {
-                    value: 20243,
-                },
-            ],
-        },
-        {
-            name: "La Jaira",
-            materia: [
-                {
-                    value: 25200,
-                },
-            ],
-        },
-        {
-            name: "Nicolas Murillo",
-            materia: [{ value: 48200 }],
-        },
-        {
-            name: "Juan Garcia",
-            materia: [{ value: 22143 }],
-        },
-        {
-            name: "Oscar Quimbaya",
-            materia: [{ value: 33567 }],
-        },
-        {
-            name: "Antonio Areas",
-            materia: [{ value: 36520 }],
-        },
-    ],
-};
- */
+
 function drawChartBarProveedores() {
     const { proveedorData } = info_globlal;
 
@@ -631,7 +489,7 @@ function drawChartBarProveedores() {
             d3.axisTop(x).tickFormat((d) => {
                 if (d >= 1000) return d / 1000 + "k";
                 return d;
-            })
+            }),
         )
         .selectAll("text")
         .attr("class", "axis-label");
@@ -672,7 +530,7 @@ function drawChartBarProveedores() {
                 .html(
                     `<strong>${
                         d.name
-                    }</strong><br/>Valor: ${d.value.toLocaleString()}`
+                    }</strong><br/>Valor: ${d.value.toLocaleString()}`,
                 )
                 .style("left", event.pageX + 10 + "px")
                 .style("top", event.pageY - 28 + "px");
@@ -708,56 +566,6 @@ function drawChartBarProveedores() {
 // ========================= //
 //   CONTENEDORES EN EL AÑO  //
 // ========================= //
-/* const contenedoresData = [
-    {
-        name: "Enero",
-        value: 3,
-    },
-    {
-        name: "Febrero",
-        value: 2,
-    },
-    {
-        name: "Marzo",
-        value: 3,
-    },
-    {
-        name: "Abril",
-        value: 2,
-    },
-    {
-        name: "Mayo",
-        value: 2,
-    },
-    {
-        name: "Junio",
-        value: 1,
-    },
-    {
-        name: "Julio",
-        value: 3,
-    },
-    {
-        name: "Agosto",
-        value: 2,
-    },
-    {
-        name: "Septiembre",
-        value: 2,
-    },
-    {
-        name: "Octubre",
-        value: 2,
-    },
-    {
-        name: "Noviembre",
-        value: 3,
-    },
-    {
-        name: "Diciembre",
-        value: 2,
-    },
-]; */
 
 function drawChartBarContenedores() {
     const { contenedoresData } = info_globlal;
@@ -765,7 +573,7 @@ function drawChartBarContenedores() {
     const container = document.querySelector(".container-contenedores");
     const containerWidth = container.offsetWidth;
 
-    const margin = { top: 40, right: 20, bottom: 50, left: 60 };
+    const margin = { top: 40, right: 0, bottom: 50, left: 60 };
     const width = Math.max(600, containerWidth - margin.left - margin.right);
     const height = Math.max(400, contenedoresData.length * 40);
 
@@ -832,7 +640,7 @@ function drawChartBarContenedores() {
                 .html(
                     `<strong>${
                         d.name
-                    }</strong><br/>Valor: ${d.value.toLocaleString()}`
+                    }</strong><br/>Valor: ${d.value.toLocaleString()}`,
                 )
                 .style("left", event.pageX + 10 + "px")
                 .style("top", event.pageY - 28 + "px");

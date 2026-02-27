@@ -76,7 +76,37 @@ export function redirigirPorRol(modulo, rol) {
                     },
                 ],
             },
+            Alistamiento: {
+                home: "/tablet/home",
+                menu: [
+                    {
+                        href: "/tablet/alistamiento03",
+                        icon: "icon-paper",
+                        label: "Alistamiento",
+                    },
+                    {
+                        href: "/tablet/home",
+                        icon: "icon-reply",
+                        label: "Hogar",
+                    },
+                ],
+            },
             Cortador: {
+                home: "/tablet/home",
+                menu: [
+                    {
+                        href: "/tablet/registrocorte04",
+                        icon: "icon-stack-2",
+                        label: "Cortes",
+                    },
+                    {
+                        href: "/tablet/home",
+                        icon: "icon-reply",
+                        label: "Hogar",
+                    },
+                ],
+            },
+            Corte: {
                 home: "/tablet/home",
                 menu: [
                     {
@@ -121,6 +151,21 @@ export function redirigirPorRol(modulo, rol) {
                     },
                 ],
             },
+            Cuartos: {
+                home: "/tablet/home",
+                menu: [
+                    {
+                        href: "/tablet/registrotemperatura06",
+                        icon: "icon-home",
+                        label: "Temperatura",
+                    },
+                    {
+                        href: "/tablet/home",
+                        icon: "icon-reply",
+                        label: "Hogar",
+                    },
+                ],
+            },
             Empaque: {
                 home: "/tablet/home",
                 menu: [
@@ -133,11 +178,6 @@ export function redirigirPorRol(modulo, rol) {
                         href: "/tablet/verificacionempaque08",
                         icon: "ft-check-square",
                         label: "Verificación Empaque",
-                    },
-                    {
-                        href: "/tablet/registroempaque07",
-                        icon: "ft-package",
-                        label: "Inventario",
                     },
                     {
                         href: "/tablet/home",
@@ -247,7 +287,37 @@ export function generarSidebar(modulo, rol) {
                     },
                 ],
             },
+            Alistamiento: {
+                home: "/tablet/home",
+                menu: [
+                    {
+                        href: "/tablet/alistamiento03",
+                        icon: "ft-clipboard",
+                        label: "Alistamiento",
+                    },
+                    {
+                        href: "/tablet/home",
+                        icon: "ft-corner-down-left",
+                        label: "Hogar",
+                    },
+                ],
+            },
             Cortador: {
+                home: "/tablet/home",
+                menu: [
+                    {
+                        href: "/tablet/registrocorte04",
+                        icon: "ft-layers",
+                        label: "Cortes",
+                    },
+                    {
+                        href: "/tablet/home",
+                        icon: "ft-corner-down-left",
+                        label: "Hogar",
+                    },
+                ],
+            },
+            Corte: {
                 home: "/tablet/home",
                 menu: [
                     {
@@ -292,6 +362,21 @@ export function generarSidebar(modulo, rol) {
                     },
                 ],
             },
+            Cuartos: {
+                home: "/tablet/home",
+                menu: [
+                    {
+                        href: "/tablet/registrotemperatura06",
+                        icon: "ft-home",
+                        label: "Temperatura",
+                    },
+                    {
+                        href: "/tablet/home",
+                        icon: "ft-corner-down-left",
+                        label: "Hogar",
+                    },
+                ],
+            },
             Empaque: {
                 home: "/tablet/home",
                 menu: [
@@ -304,11 +389,6 @@ export function generarSidebar(modulo, rol) {
                         href: "/tablet/verificacionempaque08",
                         icon: "ft-check-square",
                         label: "Verificación Empaque",
-                    },
-                    {
-                        href: "/tablet/registroempaque07",
-                        icon: "ft-package",
-                        label: "Inventario",
                     },
                     {
                         href: "/tablet/home",

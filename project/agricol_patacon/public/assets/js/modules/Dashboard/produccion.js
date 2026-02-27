@@ -1,15 +1,626 @@
 import eventManager from "../../helpers/EventsManager.js";
-import { AlertManager, ApiService } from "../../helpers/ApiUseManager.js";
+import {
+    AlertManager,
+    ApiService,
+    Url,
+    fechaHoy,
+} from "../../helpers/ApiUseManager.js";
 import notificationManager from "../../helpers/NotificacionesManger.js";
 
-const API_PRODUCCION = new ApiService("http://localhost:3105/data/produccion");
-const API_ENCARGO = new ApiService("http://localhost:3105/config/encargo");
-const API_EMPLEADO = new ApiService("http://localhost:3105/data/empleados");
+const API_PRODUCCION = new ApiService(Url + "/data/produccion");
+const API_ENCARGO = new ApiService(Url + "/config/encargo");
+const API_EMPLEADO = new ApiService(Url + "/data/empleados");
+const API_CLIENTE = new ApiService(Url + "/data/cliente");
+
+const API_BODEGA = new ApiService(Url + "/data/bodega");
+
 const alerts = new AlertManager();
 
 const token = document
     .querySelector('meta[name="jwt"]')
     .getAttribute("content");
+
+// Variables globales
+let ordenA = "";
+
+const cargarSobrante = async () => {
+    const response = await API_BODEGA.post(
+        "/historial-sobrante/" + ordenA,
+        {
+            fecha: fechaHoy,
+        },
+        {
+            headers: {
+                "Content-Type": "application/json",
+                Authorization: "Bearer " + token,
+            },
+        },
+    );
+    console.log("este es : ", response);
+};
+
+const BtnEnviar = document.getElementById("BtnEnviar");
+const BtnPdf = document.getElementById("BtnPdf");
+
+const generarPDFContenedor = async () => {
+    try {
+        renderOrden();
+        const res = await API_BODEGA.get("/datos/" + ordenA,
+            {
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: "Bearer " + token,
+                },
+            },
+        );
+
+        let data = res;
+
+        const response = await fetch("/reporte-contenedor", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "X-CSRF-TOKEN": document
+                    .querySelector('meta[name="csrf-token"]')
+                    .getAttribute("content"),
+            },
+            body: JSON.stringify(data),
+        });
+
+        if (!response.ok) {
+            const err = await response.text();
+            console.error("Error backend:", err);
+            return;
+        }
+
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+
+        window.open(url, "_blank");
+    } catch (error) {
+        console.error("Error generando PDF contenedor:", error);
+    }
+};
+
+BtnPdf.addEventListener("click", generarPDFContenedor);
+// ============================================
+// FUNCIONES PARA LA TABLA PRINCIPAL
+// ============================================
+
+// Función para cargar los datos en la tabla
+const cargarTablaEnvio = async () => {
+    try {
+        const response = await API_BODEGA.get(
+            "/info-cajas-proveedor/" + ordenA,
+            {
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: "Bearer " + token,
+                },
+            },
+        );
+
+        if (response.data.success) {
+            const data = response.data.data;
+            const totales = response.data.totales;
+
+            // Actualizar la tabla
+            actualizarTablaEnvio(data);
+
+            // Actualizar totales
+            actualizarTotales(totales);
+
+            // Cargar el historial después de cargar la tabla principal
+            await cargarHistorialEnvios();
+        }
+    } catch (error) {
+        console.error("Error al cargar datos:", error);
+        Swal.fire({
+            icon: "error",
+            title: "Error",
+            text: "No se pudieron cargar los datos",
+        });
+    }
+};
+
+// Función para actualizar la tabla (sin columna de acciones)
+const actualizarTablaEnvio = (data) => {
+    const tbody = document.querySelector("#tableEnviar tbody");
+
+    if (!data || data.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="9" class="text-center py-4">
+                    No hay órdenes de producción listas para envío
+                </td>
+            </tr>
+        `;
+        return;
+    }
+
+    let filas = "";
+
+    data.forEach((item) => {
+        // 🔹 Detectar el objeto especial
+        if (item.cajasContenedorAnterior) {
+            // 👉 sumar las cajas del contenedor anterior
+            const totales = item.cajasContenedorAnterior.reduce(
+                (acc, c) => {
+                    acc.A += c.tipo_a || 0;
+                    acc.B += c.tipo_b || 0;
+                    acc.C += c.tipo_c || 0;
+                    acc.AF += c.tipo_af || 0;
+                    acc.BH += c.tipo_bh || 0;
+                    acc.XL += c.tipo_xl || 0;
+                    acc.CIL += c.tipo_cil || 0;
+                    acc.PINTON += c.tipo_p || 0;
+                    return acc;
+                },
+                { A: 0, B: 0, C: 0, AF: 0, BH: 0, XL: 0, CIL: 0, PINTON: 0 },
+            );
+
+            filas += `
+                <tr class="table-secondary fw-semibold">
+                    <td class="text-center align-middle">
+                        Cajas contenedor anterior
+                    </td>
+                    <td class="text-center align-middle">${totales.A}</td>
+                    <td class="text-center align-middle">${totales.B}</td>
+                    <td class="text-center align-middle">${totales.C}</td>
+                    <td class="text-center align-middle">${totales.AF}</td>
+                    <td class="text-center align-middle">${totales.BH}</td>
+                    <td class="text-center align-middle">${totales.XL}</td>
+                    <td class="text-center align-middle">${totales.CIL}</td>
+                    <td class="text-center align-middle">${totales.PINTON}</td>
+                </tr>
+            `;
+            return;
+        }
+
+        // 🔹 Proveedores normales
+        filas += `
+            <tr>
+                <td class="text-center align-middle fw-semibold">
+                    ${item.proveedor}
+                </td>
+                <td class="text-center align-middle">${item.A || 0}</td>
+                <td class="text-center align-middle">${item.B || 0}</td>
+                <td class="text-center align-middle">${item.C || 0}</td>
+                <td class="text-center align-middle">${item.AF || 0}</td>
+                <td class="text-center align-middle">${item.BH || 0}</td>
+                <td class="text-center align-middle">${item.XL || 0}</td>
+                <td class="text-center align-middle">${item.CIL || 0}</td>
+                <td class="text-center align-middle">${item.PINTON || 0}</td>
+            </tr>
+        `;
+    });
+
+    tbody.innerHTML = filas;
+};
+
+// Función para actualizar los totales
+const actualizarTotales = (totales) => {
+    document.getElementById("totalTipoA").textContent = totales.A || 0;
+    document.getElementById("totalTipoB").textContent = totales.B || 0;
+    document.getElementById("totalTipoC").textContent = totales.C || 0;
+    document.getElementById("totalTipoAF").textContent = totales.AF || 0;
+    document.getElementById("totalTipoBH").textContent = totales.BH || 0;
+    document.getElementById("totalTipoXL").textContent = totales.XL || 0;
+    document.getElementById("totalTipoCIL").textContent = totales.CIL || 0;
+    document.getElementById("totalTipoPINTON").textContent =
+        totales.PINTON || 0;
+};
+
+// ============================================
+// FUNCIONES PARA EL HISTORIAL
+// ============================================
+
+// En tu frontend, modifica la función cargarHistorialEnvios
+const cargarHistorialEnvios = async () => {
+    try {
+        const ordenActual = ordenA;
+
+        if (!ordenActual) {
+            console.log("No hay orden seleccionada");
+            return;
+        }
+
+        const response = await API_BODEGA.get(
+            `/historial-envios/${ordenActual}`,
+            {
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: "Bearer " + token,
+                },
+            },
+        );
+
+        if (response.success) {
+            // 👈 Accedemos a response.data.success
+            const historialData = response.data || { envios: [] };
+            console.log("📦 Historial a mostrar:", historialData);
+            actualizarTablaHistorial(historialData);
+        } else {
+            console.error("Error al cargar historial:", response.message);
+            actualizarTablaHistorial({ envios: [] });
+        }
+    } catch (error) {
+        console.error("❌ Error al cargar historial:", error);
+        console.error("❌ Error response:", error.response?.data);
+        actualizarTablaHistorial({ envios: [] });
+    }
+};
+
+// Función para actualizar la tabla de historial - CORREGIDA
+const actualizarTablaHistorial = (data) => {
+    const tbody = document.querySelector("#tableHistorialEnviar tbody");
+    const envios = data.envios || [];
+
+    if (!envios || envios.length === 0) {
+        // Mostrar mensaje de no hay datos
+        tbody.innerHTML = `
+      <tr>
+        <td colspan="11" class="text-center py-4">
+          <div class="d-flex flex-column align-items-center">
+            <i class="fa-solid fa-clock-rotate-left fa-3x text-secondary mb-2"></i>
+            <span class="text-secondary fw-semibold">No hay historial de envíos para esta orden</span>
+          </div>
+        </td>
+      </tr>
+    `;
+        return;
+    }
+
+    // Construir las filas de la tabla
+    let filas = "";
+    envios.forEach((item) => {
+        // Formatear fecha correctamente
+        const fecha = new Date(item.fecha).toLocaleDateString("es-ES", {
+            year: "numeric",
+            month: "2-digit",
+            day: "2-digit",
+        });
+
+        // Determinar estado basado en si tiene sobrantes
+        let estadoHTML = "";
+        if (item.tiene_sobrantes) {
+            estadoHTML =
+                '<span class="badge bg-warning text-dark"><i class="fa-solid fa-boxes"></i> Con sobrantes</span>';
+        } else {
+            estadoHTML =
+                '<span class="badge bg-success"><i class="fa-solid fa-check"></i> Completado</span>';
+        }
+
+        filas += `
+      <tr>
+        <td class="text-center align-middle">${fecha}</td>
+        <td class="text-center align-middle fw-semibold">${item.lote_produccion}</td>
+        <td class="text-center align-middle">${item.tipo_a || 0}</td>
+        <td class="text-center align-middle">${item.tipo_b || 0}</td>
+        <td class="text-center align-middle">${item.tipo_c || 0}</td>
+        <td class="text-center align-middle">${item.tipo_af || 0}</td>
+        <td class="text-center align-middle">${item.tipo_bh || 0}</td>
+        <td class="text-center align-middle">${item.tipo_xl || 0}</td>
+        <td class="text-center align-middle">${item.tipo_cil || 0}</td>
+        <td class="text-center align-middle">${item.tipo_p || 0}</td>
+        <td class="text-center align-middle">${estadoHTML}</td>
+      </tr>
+    `;
+    });
+
+    tbody.innerHTML = filas;
+
+    // Opcional: Mostrar contador de registros
+    console.log(`✅ Tabla actualizada con ${envios.length} registros`);
+};
+
+// ============================================
+// FUNCIÓN PARA GUARDAR SOBRANTES
+// ============================================
+
+// Función para guardar los sobrantes
+const guardarSobrantes = async () => {
+    // Validar fecha
+    const fecha = document.getElementById("fechaSobrantes").value;
+    if (!fecha) {
+        Swal.fire({
+            icon: "warning",
+            title: "Campo requerido",
+            text: "Debe seleccionar una fecha",
+        });
+        return;
+    }
+
+    // Recopilar los datos de sobrantes
+    const sobrantes = {
+        A: parseInt(document.getElementById("sobranteA").value) || 0,
+        B: parseInt(document.getElementById("sobranteB").value) || 0,
+        C: parseInt(document.getElementById("sobranteC").value) || 0,
+        AF: parseInt(document.getElementById("sobranteAF").value) || 0,
+        BH: parseInt(document.getElementById("sobranteBH").value) || 0,
+        XL: parseInt(document.getElementById("sobranteXL").value) || 0,
+        CIL: parseInt(document.getElementById("sobranteCIL").value) || 0,
+        PINTON: parseInt(document.getElementById("sobrantePINTON").value) || 0,
+    };
+
+    // Obtener los totales actuales de la tabla
+    const totalesActuales = {
+        A: parseInt(document.getElementById("totalTipoA").textContent) || 0,
+        B: parseInt(document.getElementById("totalTipoB").textContent) || 0,
+        C: parseInt(document.getElementById("totalTipoC").textContent) || 0,
+        AF: parseInt(document.getElementById("totalTipoAF").textContent) || 0,
+        BH: parseInt(document.getElementById("totalTipoBH").textContent) || 0,
+        XL: parseInt(document.getElementById("totalTipoXL").textContent) || 0,
+        CIL: parseInt(document.getElementById("totalTipoCIL").textContent) || 0,
+        PINTON:
+            parseInt(document.getElementById("totalTipoPINTON").textContent) ||
+            0,
+    };
+
+    // Validar que los sobrantes no sean mayores a los totales
+    for (const [tipo, cantidad] of Object.entries(sobrantes)) {
+        if (cantidad > 0 && cantidad > totalesActuales[tipo]) {
+            Swal.fire({
+                icon: "error",
+                title: "Cantidad inválida",
+                text: `Los sobrantes de tipo ${tipo} (${cantidad}) no pueden ser mayores al total disponible (${totalesActuales[tipo]})`,
+            });
+            return;
+        }
+    }
+
+    // Calcular lo que se envió
+    const enviados = {
+        A: totalesActuales.A - sobrantes.A,
+        B: totalesActuales.B - sobrantes.B,
+        C: totalesActuales.C - sobrantes.C,
+        AF: totalesActuales.AF - sobrantes.AF,
+        BH: totalesActuales.BH - sobrantes.BH,
+        XL: totalesActuales.XL - sobrantes.XL,
+        CIL: totalesActuales.CIL - sobrantes.CIL,
+        PINTON: totalesActuales.PINTON - sobrantes.PINTON,
+    };
+
+    // Verificar si hay algo para enviar
+    const totalEnvio = Object.values(enviados).reduce(
+        (acc, val) => acc + val,
+        0,
+    );
+    if (totalEnvio === 0) {
+        Swal.fire({
+            icon: "warning",
+            title: "Sin productos",
+            text: "No hay productos disponibles para enviar",
+        });
+        return;
+    }
+
+    // Obtener la orden actual
+    const ordenActual = ordenA;
+
+    // Confirmar registro
+    Swal.fire({
+        title: "Confirmar registro",
+        html: `
+            <div class="text-start">
+                <p><strong>Fecha:</strong> ${fecha}</p>
+                <p><strong>Orden:</strong> ${ordenActual}</p>
+                <hr>
+                <h6>Cajas enviadas:</h6>
+                <ul>
+                    ${enviados.A > 0 ? `<li>Tipo A: ${enviados.A}</li>` : ""}
+                    ${enviados.B > 0 ? `<li>Tipo B: ${enviados.B}</li>` : ""}
+                    ${enviados.C > 0 ? `<li>Tipo C: ${enviados.C}</li>` : ""}
+                    ${enviados.AF > 0 ? `<li>Tipo AF: ${enviados.AF}</li>` : ""}
+                    ${enviados.BH > 0 ? `<li>Tipo BH: ${enviados.BH}</li>` : ""}
+                    ${enviados.XL > 0 ? `<li>Tipo XL: ${enviados.XL}</li>` : ""}
+                    ${enviados.CIL > 0 ? `<li>Tipo CIL: ${enviados.CIL}</li>` : ""}
+                    ${enviados.PINTON > 0 ? `<li>Tipo PINTON: ${enviados.PINTON}</li>` : ""}
+                </ul>
+                ${
+                    Object.values(sobrantes).some((val) => val > 0)
+                        ? `
+                    <h6>Cajas sobrantes:</h6>
+                    <ul>
+                        ${sobrantes.A > 0 ? `<li>Tipo A: ${sobrantes.A}</li>` : ""}
+                        ${sobrantes.B > 0 ? `<li>Tipo B: ${sobrantes.B}</li>` : ""}
+                        ${sobrantes.C > 0 ? `<li>Tipo C: ${sobrantes.C}</li>` : ""}
+                        ${sobrantes.AF > 0 ? `<li>Tipo AF: ${sobrantes.AF}</li>` : ""}
+                        ${sobrantes.BH > 0 ? `<li>Tipo BH: ${sobrantes.BH}</li>` : ""}
+                        ${sobrantes.XL > 0 ? `<li>Tipo XL: ${sobrantes.XL}</li>` : ""}
+                        ${sobrantes.CIL > 0 ? `<li>Tipo CIL: ${sobrantes.CIL}</li>` : ""}
+                        ${sobrantes.PINTON > 0 ? `<li>Tipo PINTON: ${sobrantes.PINTON}</li>` : ""}
+                    </ul>
+                `
+                        : '<p class="text-success"><i class="fa-solid fa-check"></i> No hay cajas sobrantes (todo se envió)</p>'
+                }
+            </div>
+        `,
+        icon: "question",
+        showCancelButton: true,
+        confirmButtonColor: "#ffc107",
+        cancelButtonColor: "#d33",
+        confirmButtonText: "Sí, registrar",
+        cancelButtonText: "Cancelar",
+    }).then(async (result) => {
+        if (result.isConfirmed) {
+            try {
+                // Mostrar loading
+                Swal.fire({
+                    title: "Procesando...",
+                    text: "Registrando envío",
+                    allowOutsideClick: false,
+                    didOpen: () => {
+                        Swal.showLoading();
+                    },
+                });
+
+                // Enviar a la API
+                const response = await API_BODEGA.post(
+                    "/registrar-envio",
+                    {
+                        fecha: fecha,
+                        orden: ordenActual,
+                        enviados: enviados,
+                        sobrantes: sobrantes,
+                    },
+                    {
+                        headers: {
+                            "Content-Type": "application/json",
+                            Authorization: "Bearer " + token,
+                        },
+                    },
+                );
+
+                console.log("Respuesta:", response);
+
+                const data = response;
+
+                if (data.success) {
+                    const modal = bootstrap.Modal.getInstance(
+                        document.getElementById("modalSobrantes"),
+                    );
+                    modal.hide();
+
+                    document.getElementById("formSobrantes").reset();
+
+                    await cargarTablaEnvio();
+
+                    Swal.fire({
+                        icon: "success",
+                        title: "¡Registrado!",
+                        html: `
+                        Se ha registrado el envío de:<br>
+                        <strong>${totalEnvio} cajas</strong><br>
+                        ${
+                            Object.values(sobrantes).some((val) => val > 0)
+                                ? `<span class="text-warning">Quedaron ${Object.values(sobrantes).reduce((a, b) => a + b, 0)} cajas como sobrantes</span>`
+                                : '<span class="text-success">No quedaron cajas sobrantes</span>'
+                        }
+                    `,
+                        timer: 3000,
+                        showConfirmButton: false,
+                    });
+                } else {
+                    Swal.close();
+
+                    if (data.statusCode === 409) {
+                        Swal.fire({
+                            icon: "warning",
+                            title: "¡Orden ya registrada!",
+                            text: data.message,
+                            confirmButtonColor: "#ffc107",
+                        });
+                    } else if (data.statusCode === 400) {
+                        Swal.fire({
+                            icon: "error",
+                            title: "Error de validación",
+                            text: data.message || "Datos inválidos",
+                        });
+                    } else {
+                        Swal.fire({
+                            icon: "error",
+                            title: "Error",
+                            text: data.message || "Error al registrar el envío",
+                        });
+                    }
+                }
+            } catch (error) {
+                Swal.close();
+
+                const status = error.response?.status;
+                const data = error.response?.data;
+
+                if (status === 409) {
+                    Swal.fire({
+                        icon: "warning",
+                        title: "¡Orden ya registrada!",
+                        text: data?.message,
+                    });
+                    return;
+                }
+
+                if (status === 400) {
+                    Swal.fire({
+                        icon: "error",
+                        title: "Error de validación",
+                        text: data?.message,
+                    });
+                    return;
+                }
+
+                Swal.fire({
+                    icon: "error",
+                    title: "Error",
+                    text: data?.message || error.message,
+                });
+            }
+        }
+    });
+};
+
+// ============================================
+// EVENTOS Y INICIALIZACIÓN
+// ============================================
+
+document.addEventListener("DOMContentLoaded", () => {
+    // Asignar evento al botón guardar
+    const BtnEnviar = document.getElementById("BtnEnviar");
+    if (BtnEnviar) {
+        BtnEnviar.addEventListener("click", guardarSobrantes);
+    }
+
+    // Configurar el modal de sobrantes
+    const modalSobrantes = document.getElementById("modalSobrantes");
+    if (modalSobrantes) {
+        modalSobrantes.addEventListener("hidden.bs.modal", () => {
+            document.getElementById("formSobrantes").reset();
+            // Establecer la fecha actual por defecto cuando se vuelva a abrir
+            const hoy = new Date().toISOString().split("T")[0];
+            document.getElementById("fechaSobrantes").value = hoy;
+        });
+
+        // Establecer fecha actual cuando se abre el modal
+        modalSobrantes.addEventListener("show.bs.modal", () => {
+            const hoy = new Date().toISOString().split("T")[0];
+            document.getElementById("fechaSobrantes").value = hoy;
+
+            // Poner todos los inputs en 0
+            document.getElementById("sobranteA").value = 0;
+            document.getElementById("sobranteB").value = 0;
+            document.getElementById("sobranteC").value = 0;
+            document.getElementById("sobranteAF").value = 0;
+            document.getElementById("sobranteBH").value = 0;
+            document.getElementById("sobranteXL").value = 0;
+            document.getElementById("sobranteCIL").value = 0;
+            document.getElementById("sobrantePINTON").value = 0;
+        });
+    }
+
+    // Cargar datos cuando se muestra el tab de envío
+    const tabEnvio = document.querySelector('a[href="#enviar"]');
+    if (tabEnvio) {
+        tabEnvio.addEventListener("shown.bs.tab", () => {
+            cargarTablaEnvio();
+            cargarHistorialEnvios();
+        });
+    }
+
+    // Cargar inicialmente si el tab está activo
+    if (document.querySelector("#enviar.active")) {
+        cargarTablaEnvio();
+        cargarHistorialEnvios();
+    }
+});
+
+// También cargar historial cuando cambie la orden
+const setOrdenA = (nuevaOrden) => {
+    ordenA = nuevaOrden;
+    if (document.querySelector("#enviar.active")) {
+        cargarTablaEnvio();
+        cargarHistorialEnvios();
+    }
+};
 
 const elementsProduccion = {
     inputSearchC: document.querySelector("#inputSearhC"),
@@ -43,12 +654,16 @@ const listenerIds = {
 async function init() {
     try {
         await llenarResposables();
+        await cargarClientesEnDatalist();
         await cargarProducciones();
         await renderPanel();
         await renderOrden();
         initializeCards();
+        cargarTablaEnvio();
         await eventCheck();
         setupEventListeners();
+        configurarSeleccionCliente();
+        cargarSobrante();
     } catch (error) {
         console.error("Error al inicializar:", error);
         Swal.fire({
@@ -59,12 +674,14 @@ async function init() {
     }
 }
 
+BtnEnviar.addEventListener("click", guardarSobrantes);
+
 function setupEventListeners() {
     if (elementsProduccion.btnAgregar) {
         listenerIds.btnAgregar = eventManager.add(
             elementsProduccion.btnAgregar,
             "click",
-            handleAgregarClick
+            handleAgregarClick,
         );
     }
 
@@ -72,25 +689,25 @@ function setupEventListeners() {
         listenerIds.btnCancel = eventManager.add(
             elementsProduccion.btnRegistrar,
             "click",
-            handleSubmit
+            handleSubmit,
         );
     }
     if (elementsProduccion.btnCancel) {
         listenerIds.btnCancel = eventManager.add(
             elementsProduccion.btnCancel,
             "click",
-            handleCancel
+            handleCancel,
         );
     }
     const btnCancelReferencias = document.querySelector(
-        "#ModalReferencias .btn-cancel"
+        "#ModalReferencias .btn-cancel",
     );
 
     if (btnCancelReferencias) {
         listenerIds.btnCancel = eventManager.add(
             btnCancelReferencias,
             "click",
-            handleCancel
+            handleCancel,
         );
     }
     /* 
@@ -112,7 +729,7 @@ function setupEventListeners() {
         listenerIds.formProduccion = eventManager.add(
             elementsProduccion.formProduccion,
             "submit",
-            formProduccion
+            formProduccion,
         );
     }
 
@@ -121,7 +738,7 @@ function setupEventListeners() {
             elementsProduccion.inputSearchC,
             "input",
             buscarOrdenesC,
-            300
+            300,
         );
     } else {
         console.warn("Input de búsqueda de contenedores no encontrado");
@@ -132,7 +749,7 @@ function setupEventListeners() {
             elementsProduccion.inputPeso,
             "input",
             updateSummary,
-            300
+            300,
         );
     } else {
         console.warn("Input de búsqueda de contenedores no encontrado");
@@ -142,14 +759,14 @@ function setupEventListeners() {
         listenerIds.confirmButton = eventManager.add(
             elementsProduccion.confirmButton,
             "click",
-            handleConfirmClick
+            handleConfirmClick,
         );
     }
     if (elementsProduccion.inputSaerchFecha) {
         listenerIds.inputSaerchFecha = eventManager.add(
             elementsProduccion.inputSaerchFecha,
             "change",
-            infoRendimiento
+            infoRendimiento,
         );
     }
 
@@ -160,7 +777,7 @@ function setupEventListeners() {
             suggestionsContainer,
             "click",
             ".suggestion-item",
-            handleSuggestionClick
+            handleSuggestionClick,
         );
     }
 
@@ -219,7 +836,7 @@ function initializeCards() {
                     disabled
                 >
             </div>
-        `
+        `,
         )
         .join("");
 }
@@ -251,7 +868,7 @@ function updateCard(id) {
 }
 const eventCheck = async () => {
     const checkboxes = document.querySelectorAll(
-        '.caja-card-header input[type="checkbox"]'
+        '.caja-card-header input[type="checkbox"]',
     );
 
     checkboxes.forEach((cb) => {
@@ -404,7 +1021,7 @@ async function handleSubmit() {
 
             // Obtener el ID de producción
             const idProduccionInput = document.getElementById(
-                "id_produccion_referencias"
+                "id_produccion_referencias",
             );
             const idProduccion = idProduccionInput
                 ? idProduccionInput.value
@@ -505,7 +1122,7 @@ async function handleConfirmClick() {
     } finally {
         // Cerrar modal
         const modal = bootstrap.Modal.getInstance(
-            document.getElementById("confirmModal")
+            document.getElementById("confirmModal"),
         );
         modal?.hide();
     }
@@ -544,7 +1161,7 @@ async function buscarOrdenesC() {
 
         const { data } = response;
         const resultados = data.filter((orden) =>
-            orden.Lote.toLowerCase().includes(query)
+            orden.Lote.toLowerCase().includes(query),
         );
 
         renderSuggestions(resultados, suggestions, "C");
@@ -632,6 +1249,9 @@ async function cargarProducciones() {
         headers: { Authorization: "Bearer " + token },
     });
 
+    await renderPanel();
+    await renderOrden();
+
     if (!res.success) {
         alerts.show(res);
         return false;
@@ -668,45 +1288,45 @@ async function cargarProducciones() {
                 render: (data, type, row) => `
 
                      <div class="btn-group dropend">
-  <button type="button" class="btn btn-light  btn-sm dropdown-toggle text-center d-flex align-items-center justify-content-center"
-  data-bs-toggle="dropdown" aria-expanded="false" style="background-color: #fffefdef;  width: 42px; height: 42px; border-radius: 50%;">
-    <i class="fas fa-ellipsis-v"></i>
-  </button>
-  <ul class="dropdown-menu shadow-sm border-0 rounded-3 suggestions">
-  <li>
-      <a class="dropdown-item d-flex align-items-center info-btn" data-id="${row.id}">
-        <i class="fas fa-circle-info text-info me-2"></i> Info
-      </a>
-    </li>
-    <li>
-      <a class="dropdown-item d-flex align-items-center edit-btn" data-id="${row.id}">
-        <i class="fas fa-edit text-warning me-2"></i> Editar
-      </a>
-    </li>
-    <li>
-      <a class="dropdown-item d-flex align-items-center delete-btn" data-id="${row.id}">
-        <i class="fas fa-trash-alt text-danger me-2"></i> Eliminar
-      </a>
-    </li>
-     <li>
-      <a class="dropdown-item d-flex align-items-center asignar-btn" data-id="${row.id}">
-        <i class="fas fa-tags me-2" style="color: #ec6704"></i> Referencias 
-      </a>
-    </li>
-    <li>
-      <a class="dropdown-item d-flex align-items-center finalizar-btn" data-id="${row.id}">
-        <i class="fas fa-circle-check text-success me-2"></i> Terminado 
-      </a>
-    </li>
-  </ul>
-</div>
+                        <button type="button" class="btn btn-light  btn-sm dropdown-toggle text-center d-flex align-items-center justify-content-center"
+                        data-bs-toggle="dropdown" aria-expanded="false" style="background-color: #fffefdef;  width: 42px; height: 42px; border-radius: 50%;">
+                            <i class="fas fa-ellipsis-v"></i>
+                        </button>
+                        <ul class="dropdown-menu shadow-sm border-0 rounded-3 suggestions">
+                            <li>
+                                <a class="dropdown-item d-flex align-items-center info-btn" data-id="${row.id}">
+                                    <i class="fas fa-circle-info text-info me-2"></i> Info
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item d-flex align-items-center edit-btn" data-id="${row.id}">
+                                    <i class="fas fa-edit text-warning me-2"></i> Editar
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item d-flex align-items-center delete-btn" data-id="${row.id}">
+                                    <i class="fas fa-trash-alt text-danger me-2"></i> Eliminar
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item d-flex align-items-center asignar-btn" data-id="${row.id}">
+                                    <i class="fas fa-tags me-2" style="color: #ec6704"></i> Referencias 
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item d-flex align-items-center finalizar-btn" data-id="${row.id}">
+                                    <i class="fas fa-circle-check text-success me-2"></i> Terminado 
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
                 `,
             },
         ],
         drawCallback: function () {
             var api = this.api();
             var numColumnas = api.columns().count();
-            if (numColumnas <= 10) {
+            if (numColumnas <= 5) {
                 $(".dataTables_paginate").hide();
             } else {
                 $(".dataTables_paginate").show();
@@ -767,13 +1387,17 @@ async function abrirEditar(id_produccion) {
         return false;
     }
     const { data } = res;
+    
     document.getElementById("id_produccion").value = data.id;
     document.getElementById("fecha_creacion").value = data.fecha_creacion;
-    document.getElementById("lote_produccion").value = data.lote_produccion;
+
+    const loteGenerado = generarLoteProduccion(data.fecha_creacion);
+
+    document.getElementById("fecha_cierre").value = data.fecha_cierre;
+    document.getElementById("lote_produccion").value = loteGenerado;
     document.getElementById("numero_cajas").value = data.numero_cajas;
     document.getElementById("inputElaboracion").value = data.responsable.nombre;
-    document.getElementById("id_elaboracion").value =
-        data.responsable.id_responsable;
+    document.getElementById("id_elaboracion").value = data.id_responsable;
 
     $("#ModalProduccion").modal("show");
 }
@@ -855,13 +1479,13 @@ function sanitizarCampos(datosProduccion) {
         .trim();
     if (!regexFecha.test(datosProduccion.fecha_creacion)) {
         throw new Error(
-            "El Formato de fecha no es valido. Debe ser YYYY-MM-dd."
+            "El Formato de fecha no es valido. Debe ser YYYY-MM-dd.",
         );
     }
 
     if (!regexLote.test(datosProduccion.lote_produccion)) {
         throw new Error(
-            "El lote de produccion NO puede contener espacios o caracteres especiales."
+            "El lote de produccion NO puede contener espacios o caracteres especiales.",
         );
     }
     return datosProduccion;
@@ -870,13 +1494,24 @@ function sanitizarCampos(datosProduccion) {
 async function formProduccion(e) {
     e.preventDefault();
     const id = document.getElementById("id_produccion").value;
+
+    // Obtener la fecha de creación
+    const fechaCreacion = document.getElementById("fecha_creacion").value;
+
+    // Generar lote automáticamente basado en la fecha
+    const loteGenerado = generarLoteProduccion(fechaCreacion);
+
+    document.getElementById("lote_produccion").value = loteGenerado;
+
     const datosProduccion = {
-        fecha_creacion: document.getElementById("fecha_creacion").value,
+        fecha_creacion: fechaCreacion,
         fecha_cierre: document.getElementById("fecha_cierre").value,
-        lote_produccion: document.getElementById("lote_produccion").value,
+        lote_produccion: loteGenerado, // Usar el lote generado automáticamente
+        cliente_relacionado: document.getElementById("inputCliente").value,
         numero_cajas: document.getElementById("numero_cajas").value,
         id_responsable: document.getElementById("id_elaboracion").value,
     };
+
     console.log(datosProduccion);
 
     try {
@@ -895,6 +1530,32 @@ async function formProduccion(e) {
             timer: 1800,
         });
     }
+}
+
+function generarLoteProduccion(fecha) {
+    if (!fecha) return "";
+
+    // Si la fecha viene en formato DD/MM/YYYY
+    if (fecha.includes("/")) {
+        const partesFecha = fecha.split("/");
+        if (partesFecha.length !== 3) return "";
+
+        const dia = partesFecha[0];
+        const mes = partesFecha[1];
+        const año = partesFecha[2].slice(-2); // Últimos 2 dígitos
+
+        return `C${dia}${mes}${año}`;
+    }
+
+    // Si la fecha viene en formato YYYY-MM-DD (input type date)
+    const partesFecha = fecha.split("-");
+    if (partesFecha.length !== 3) return "";
+
+    const año = partesFecha[0].slice(-2);
+    const mes = partesFecha[1];
+    const dia = partesFecha[2];
+
+    return `C${dia}${mes}${año}`;
 }
 
 async function guardarProduccion(produccion) {
@@ -1023,12 +1684,11 @@ async function infoProduccion(id_produccion) {
         }
         const { data } = res;
 
-        document.querySelector("#fecha_creacion_info").value =
-            data.fecha_creacion;
+        document.querySelector("#fecha_creacion_info").value = data.fecha_creacion;
         document.querySelector("#fecha_cierre_info").value = data.fecha_cierre;
-        document.querySelector("#lote_produccion_info").value =
-            data.lote_produccion;
-        document.querySelector("#cantidad_info").value = data.cantidad;
+        document.querySelector("#lote_produccion_info").value = data.lote_produccion;
+        document.querySelector("#cantidad_info").value = data.numero_cajas;
+        document.querySelector("#cliente_info").value = data.cliente_relacionado;
 
         $("#ModalInfoproduccion").modal("show");
     } catch (error) {
@@ -1052,7 +1712,7 @@ async function proyeccionContenedor(id_contenedor) {
                 headers: {
                     Authorization: "Bearer " + token,
                 },
-            }
+            },
         );
 
         if (!res.success) {
@@ -1069,7 +1729,7 @@ async function proyeccionContenedor(id_contenedor) {
         const inventarioActualizado = actualizarEstadoEmpaquePorProduccion(
             inventarioProduccion,
             inventarioCajas,
-            solicitud
+            solicitud,
         );
 
         // Promedio de Cajas Activas
@@ -1078,15 +1738,15 @@ async function proyeccionContenedor(id_contenedor) {
         // Total Producido por referencia
         const cajasProducidas = obtenerCajasProducidas(
             inventarioCajas,
-            solicitud
+            solicitud,
         );
 
         // Traemos las producciones que faltan por empacar
         const faltantes = inventarioActualizado.filter(
-            (item) => item.CanastasDisponibles != 0
+            (item) => item.CanastasDisponibles != 0,
         );
 
-        /*   console.log("Faltantes: ", faltantes); */
+        //console.log("inv: ", inventarioActualizado);
 
         const kilosPorEmpacar = faltantes.reduce((acc, item) => {
             const tipo = item.tipo;
@@ -1137,10 +1797,24 @@ async function proyeccionContenedor(id_contenedor) {
                 cajasProducidas,
                 kilosPorEmpacar,
                 rendimientos,
-                ritmoKg
-            ); /* 
+                ritmoKg,
+            );
 
-            console.log("inventario: ", cajasProducidas); */
+            const sumaTotal = bodega.reduce((total, item) => {
+                return (
+                    total +
+                    item.tipo_a +
+                    item.tipo_af +
+                    item.tipo_b +
+                    item.tipo_bh +
+                    item.tipo_c +
+                    item.tipo_cil +
+                    item.tipo_p +
+                    item.tipo_xl
+                );
+            }, 0);
+
+            document.getElementById("cajasBodega").textContent = sumaTotal;
 
             // Actualizar tarjetas principales
             document.getElementById("cajasSolicitadas").textContent =
@@ -1153,21 +1827,18 @@ async function proyeccionContenedor(id_contenedor) {
                 diasMaximo || "-";
             document.getElementById("kilosTotales").textContent =
                 new Intl.NumberFormat("es-CL").format(
-                    totalKilosSolicitados.toFixed(1)
+                    totalKilosSolicitados.toFixed(1),
                 );
 
-            document.getElementById(
-                "porcentaje"
-            ).textContent = `${porcentajeGlobal}% completado`;
-            document.getElementById(
-                "kilosFaltantes"
-            ).textContent = `${new Intl.NumberFormat("es-CL").format(
-                totalKilosFaltantes.toFixed(1)
-            )} kg faltantes`;
+            document.getElementById("porcentaje").textContent =
+                `${porcentajeGlobal}% completado`;
+            document.getElementById("kilosFaltantes").textContent =
+                `${new Intl.NumberFormat("es-CL").format(
+                    totalKilosFaltantes.toFixed(1),
+                )} kg faltantes`;
 
-            document.getElementById(
-                "progressBar"
-            ).style.width = `${porcentajeGlobal}%`;
+            document.getElementById("progressBar").style.width =
+                `${porcentajeGlobal}%`;
 
             const proyeccionesArray = Object.values(proyecciones);
 
@@ -1180,7 +1851,7 @@ async function proyeccionContenedor(id_contenedor) {
                 totalKilosSolicitados,
                 totalKilosFaltantes,
                 diasMaximo,
-                porcentajeGlobal
+                porcentajeGlobal,
             );
 
             renderDataTableProyeccion(
@@ -1188,33 +1859,47 @@ async function proyeccionContenedor(id_contenedor) {
                 estadisticas,
                 bodega,
                 kilos,
-                inventarioActualizado
+                inventarioActualizado,
             );
         }
 
-        solicitud.forEach((sol) => {
-            const id = `rendimiento_${sol.caja}`;
+        // Dentro de proyeccionContenedor, antes del forEach:
+
+        // Limpiar el contenedor primero para evitar duplicados
+        inputsRitmoDiv.innerHTML = "";
+
+        // Obtener tipos únicos usando Set
+        const tiposUnicos = [...new Set(solicitud.map((sol) => sol.caja))];
+
+        // Crear inputs solo para tipos únicos
+        tiposUnicos.forEach((tipo) => {
+            const id = `rendimiento_${tipo}`;
             inputsRitmoDiv.innerHTML += `
-            <div class="col-md-4">
-                <div class="caja-card">
-                    <div class="caja-card-header">
-                       <div class="caja-name">
-                           <i class="fas fa-box"></i>
-                        Tipo ${sol.caja}
-                        </div>
-                    </div>
-                       <label class="cantidad-label">% Rendimiento</label>
-                       <input type="number" class="form-control cantidad-input text-center shadow-sm" min="0" step="1" placeholder="Ej: 40, 35, 48 .." id="${id}" />
+    <div class="col-md-4">
+        <div class="caja-card">
+            <div class="caja-card-header">
+               <div class="caja-name">
+                   <i class="fas fa-box"></i>
+                Tipo ${tipo}
                 </div>
             </div>
-            `;
+               <label class="cantidad-label">% Rendimiento</label>
+               <input type="number" class="form-control cantidad-input text-center shadow-sm" min="0" step="1" placeholder="Ej: 40, 35, 48 .." id="${id}" />
+        </div>
+    </div>
+    `;
         });
 
-        solicitud.forEach((sol) => {
-            document
-                .getElementById(`rendimiento_${sol.caja}`)
-                .addEventListener("input", actualizarDashboard);
+        // Luego agregar los event listeners
+        tiposUnicos.forEach((tipo) => {
+            const input = document.getElementById(`rendimiento_${tipo}`);
+            if (input) {
+                // Remover listener anterior si existe para evitar múltiples listeners
+                input.removeEventListener("input", actualizarDashboard);
+                input.addEventListener("input", actualizarDashboard);
+            }
         });
+
         actualizarDashboard();
     } catch (error) {
         console.error(error);
@@ -1227,7 +1912,7 @@ const asignarInfo = (
     dataHFritura,
     dataFritura,
     totalCanastillas,
-    rechazoTotal
+    rechazoTotal,
 ) => {
     $("#platano").text(`${rendimientos[0].RendPlatano ?? 0}%`);
     $("#fritura").text(`${rendimientos[0].RendFritura ?? 0}%`);
@@ -1236,23 +1921,23 @@ const asignarInfo = (
     $("#total").text(`${rendimientos[0].RendTotal ?? 0}%`);
     $("#materiaPrima").text(
         ` ${new Intl.NumberFormat("es-CL").format(
-            dataHFritura[0].totalMateria ?? 0
-        )} kg`
+            dataHFritura[0].totalMateria ?? 0,
+        )} kg`,
     );
     $("#materiaCorte").text(
         `${new Intl.NumberFormat("es-CL").format(
-            dataFritura[0].totalCorte ?? 0
-        )} kg`
+            dataFritura[0].totalCorte ?? 0,
+        )} kg`,
     );
     $("#materiaProcesada").text(
         `${new Intl.NumberFormat("es-CL").format(
-            dataHFritura[0].totalFritura ?? 0
-        )} Kg`
+            dataHFritura[0].totalFritura ?? 0,
+        )} Kg`,
     );
     $("#canastillas").text(`${totalCanastillas ? totalCanastillas : 0}`);
 
     $("#rechazoTotal").text(
-        `${rechazoTotal.value ? rechazoTotal.value : 0} Kg`
+        `${rechazoTotal.value ? rechazoTotal.value : 0} Kg`,
     );
 };
 
@@ -1260,11 +1945,11 @@ const asignarInfo = (
 const asignarInfoContGlobal = (global, recepcion) => {
     const { Bidones, Rechazo, Gas, Proveedores } = global;
     $("#materiaContenedor").text(
-        `${new Intl.NumberFormat("es-CL").format(recepcion.prima ?? 0)} Kg`
+        `${new Intl.NumberFormat("es-CL").format(recepcion.prima ?? 0)} Kg`,
     );
     $("#gasContenedor").text(`${Gas ?? 0}%`);
     $("#rechazoContenedor").text(
-        `${new Intl.NumberFormat("es-CL").format(Rechazo.RechazoTotal ?? 0)} Kg`
+        `${new Intl.NumberFormat("es-CL").format(Rechazo.RechazoTotal ?? 0)} Kg`,
     );
     $("#bidonesContenedor").text(`${Bidones ?? 0}`);
     $("#proveedoreContenedor").text(`${Proveedores ?? 0}`);
@@ -1278,29 +1963,29 @@ const asignarInfoProyeccion = (
     totalKilosSolicitados,
     totalKilosFaltantes,
     diasMaximo,
-    porcentajeGlobal
+    porcentajeGlobal,
 ) => {
     $("#cajasSolicitadas").text(
-        `${new Intl.NumberFormat("es-CL").format(totalSolicitado)}`
+        `${new Intl.NumberFormat("es-CL").format(totalSolicitado)}`,
     );
     $("#cajasProducidas").text(
-        `${new Intl.NumberFormat("es-CL").format(totalProducido)}`
+        `${new Intl.NumberFormat("es-CL").format(totalProducido)}`,
     );
     $("#cajasFaltantes").text(
-        `${new Intl.NumberFormat("es-CL").format(totalFaltante)} `
+        `${new Intl.NumberFormat("es-CL").format(totalFaltante)} `,
     );
     $("#diasProyeccion").text(`${diasMaximo ?? 0}`);
     $("#kilosTotales").text(
         `${new Intl.NumberFormat("es-CL").format(
-            totalKilosSolicitados.toFixed(1)
-        )}`
+            totalKilosSolicitados.toFixed(1),
+        )}`,
     );
     $("#porcentaje").text(`${porcentajeGlobal}% completado`);
 
     $("#kilosDiarios").text(
         `${new Intl.NumberFormat("es-CL").format(
-            totalKilosFaltantes.toFixed(1)
-        )} kg/día`
+            totalKilosFaltantes.toFixed(1),
+        )} kg/día`,
     );
     $("#progressBar").css("width", `${porcentajeGlobal}%`);
 };
@@ -1309,24 +1994,24 @@ const asignarInfoProyeccion = (
 const asignarInfoModals = (recepcion, alistamiento, fritura, empaque) => {
     $("#rendMate").text(`${recepcion.rendimiento ?? 0}`);
     $("#platanoRecep").text(
-        `${new Intl.NumberFormat("es-CL").format(recepcion.prima ?? 0)} Kg`
+        `${new Intl.NumberFormat("es-CL").format(recepcion.prima ?? 0)} Kg`,
     );
     $("#platanoProcesado").text(
-        `${new Intl.NumberFormat("es-CL").format(recepcion.procesada ?? 0)} Kg`
+        `${new Intl.NumberFormat("es-CL").format(recepcion.procesada ?? 0)} Kg`,
     );
     $("#canastasPeladas").text(`${alistamiento.canastillas ?? 0}`);
     $("#rechazoAlist").text(`${alistamiento.rechazo ?? 0} Kg`);
     $("#maduroAlist").text(`${alistamiento.maduro ?? 0} Kg`);
 
     $("#patacones").text(
-        `${new Intl.NumberFormat("es-CL").format(fritura.patacon ?? 0)} Kg`
+        `${new Intl.NumberFormat("es-CL").format(fritura.patacon ?? 0)} Kg`,
     );
     $("#canastillasConte").text(`${fritura.canastillas ?? 0}`);
     $("#rechazoFrit").text(
-        `${new Intl.NumberFormat("es-CL").format(fritura.rechazo ?? 0)} Kg`
+        `${new Intl.NumberFormat("es-CL").format(fritura.rechazo ?? 0)} Kg`,
     );
     $("#migasFrit").text(
-        `${new Intl.NumberFormat("es-CL").format(fritura.migas ?? 0)} Kg`
+        `${new Intl.NumberFormat("es-CL").format(fritura.migas ?? 0)} Kg`,
     );
 
     $("#cajasConte").text(`${empaque.cajas ?? 0}`);
@@ -1340,21 +2025,25 @@ function calcularEstadisticasProduccion(inventario) {
 
     tiposCaja.forEach((tipo) => {
         const propiedadCaja = `${tipo.toUpperCase()}`;
+
         const producciones = inventario.filter(
-            (item) => item.tipo === propiedadCaja
+            (item) => item.tipo === propiedadCaja,
         );
+
         const produccionesActivas = producciones.filter(
-            (p) => p.total_cajas > 0
+            (p) => p.total_cajas > 0,
         );
+
         const total = producciones.reduce(
             (sum, val) => sum + val.total_cajas,
-            0
+            0,
         );
+
         const promedioActivo =
             produccionesActivas.length > 0
                 ? produccionesActivas.reduce(
                       (sum, val) => sum + val.total_cajas,
-                      0
+                      0,
                   ) / produccionesActivas.length
                 : 0;
 
@@ -1367,7 +2056,9 @@ function calcularEstadisticasProduccion(inventario) {
             minimo:
                 produccionesActivas.length > 0
                     ? Math.min(
-                          ...produccionesActivas.map((item) => item.total_cajas)
+                          ...produccionesActivas.map(
+                              (item) => item.total_cajas,
+                          ),
                       )
                     : 0,
         };
@@ -1379,7 +2070,7 @@ function calcularEstadisticasProduccion(inventario) {
 function actualizarEstadoEmpaquePorProduccion(
     inventarioProduccion,
     inventarioCajas,
-    cajasSolicitadas
+    cajasSolicitadas,
 ) {
     const cajasMap = {};
 
@@ -1445,13 +2136,13 @@ function actualizarEstadoEmpaquePorProduccion(
             // Canastas pendientes por empacar
             const canastasPendientes = Math.max(
                 0,
-                Number(canastasProducidas || 0) - canastasEmpacadas
+                Number(canastasProducidas || 0) - canastasEmpacadas,
             );
 
             // Kilos pendientes por empacar
             const kilosPendientes = Math.max(
                 0,
-                totalProducido - kilosEmpacados
+                totalProducido - kilosEmpacados,
             );
 
             // Determinar estado empacado
@@ -1507,7 +2198,7 @@ function calcularProyeccionCompleta(
     cajasProducidas,
     kilosPorEmpacar,
     rendimientos,
-    ritmoKilos
+    ritmoKilos,
 ) {
     const proyecciones = {};
 
@@ -1529,7 +2220,7 @@ function calcularProyeccionCompleta(
         const kilosCaja = faltante * sol.peso_promedio;
         const kilosFaltantes = Math.max(
             0,
-            kilosCaja - Number(kilosPorEmpacar[tipo]?.totalEmpacar || 0)
+            kilosCaja - Number(kilosPorEmpacar[tipo]?.totalEmpacar || 0),
         );
 
         console.log(`kg faltantes tipo ${tipo}: `, kilosFaltantes);
@@ -1616,7 +2307,7 @@ async function infoRendimiento(event) {
             rendimientoHFritura,
             rendimientoFritura,
             totalCanastillas,
-            rechazoTotal
+            rechazoTotal,
         );
 
         $("#ModalInfoDataProd").modal("show");
@@ -1680,11 +2371,87 @@ function fillDatalist(datalist, data) {
 function handleInput(datalist, inputId, idFieldId) {
     document.getElementById(inputId).addEventListener("input", (e) => {
         const selectedOption = datalist.querySelector(
-            `option[value="${e.target.value}"]`
+            `option[value="${e.target.value}"]`,
         );
         if (selectedOption) {
             document.getElementById(idFieldId).value =
                 selectedOption.dataset.id;
+        }
+    });
+}
+
+// Función para cargar solo los nombres de clientes en el datalist
+async function cargarClientesEnDatalist() {
+    try {
+        const res = await API_CLIENTE.get("/obtener", {
+            headers: {
+                Authorization: "Bearer " + token,
+            },
+        });
+
+        if (!res.success) {
+            console.warn("No se pudieron cargar los clientes:", res.message);
+            return;
+        }
+
+        // Acceder a clientes desde res.data.clientes
+        const clientes = res.data.clientes || [];
+        const datalist = document.getElementById("listCliente");
+
+        if (!datalist) {
+            console.warn("Elemento listCliente no encontrado en el DOM");
+            return;
+        }
+
+        // Limpiar opciones existentes
+        datalist.innerHTML = "";
+
+        // Agregar cada nombre de cliente como opción
+        clientes.forEach((cliente) => {
+            if (cliente.Nombre) {
+                const option = document.createElement("option");
+                option.value = cliente.Nombre; // Solo el nombre
+                option.setAttribute("data-id", cliente.id); // Pero guardamos el ID por si acaso
+                datalist.appendChild(option);
+            }
+        });
+
+        console.log(
+            `${clientes.length} nombres de clientes cargados en datalist`,
+        );
+    } catch (error) {
+        console.error("Error al cargar clientes:", error);
+    }
+}
+
+// Función para capturar el ID cuando se selecciona un nombre
+function configurarSeleccionCliente() {
+    const inputCliente = document.getElementById("inputCliente");
+    const hiddenClienteId = document.getElementById("clienteId");
+
+    if (!inputCliente || !hiddenClienteId) return;
+
+    inputCliente.addEventListener("change", function () {
+        const nombreSeleccionado = this.value;
+        const datalist = document.getElementById("listCliente");
+        const options = datalist.querySelectorAll("option");
+
+        let clienteId = null;
+
+        // Buscar el ID del cliente por su nombre
+        options.forEach((option) => {
+            if (option.value === nombreSeleccionado) {
+                clienteId = option.getAttribute("data-id");
+            }
+        });
+
+        // Guardar el ID en el campo hidden
+        hiddenClienteId.value = clienteId || "";
+
+        if (clienteId) {
+            console.log(
+                `Cliente seleccionado: ${nombreSeleccionado} (ID: ${clienteId})`,
+            );
         }
     });
 }
@@ -1708,6 +2475,10 @@ async function llenarResposables() {
 }
 
 const renderPanel = async () => {
+    // Limpiar la lista antes de renderizar
+    const s = document.getElementById("ordenlist");
+    s.innerHTML = "";
+
     const response = await API_PRODUCCION.get("/obtener", {
         headers: {
             Authorization: "Bearer " + token,
@@ -1730,7 +2501,7 @@ const renderPanel = async () => {
 
     document.getElementById(`nombreorden`).addEventListener("input", (e) => {
         const selectedOption = ordenlist.querySelector(
-            `option[value="${e.target.value}"]`
+            `option[value="${e.target.value}"]`,
         );
         if (selectedOption) {
             document.getElementById(`ordenid`).value =
@@ -1757,7 +2528,10 @@ const renderOrden = async () => {
         const { ordenProduccion } = response.data;
         document.getElementById("ordenactual").textContent =
             ordenProduccion.lote_produccion;
+        document.getElementById("clienteActual").textContent =
+            ordenProduccion.cliente_relacionado || "N/A";
 
+        ordenA = ordenProduccion.id;
         proyeccionContenedor(ordenProduccion.id);
     } catch (error) {
         console.error(error);
@@ -1783,7 +2557,7 @@ const renderDataTableCaja = async (dataCaja) => {
                     targets: 0, // índice de columna
                     createdCell: function (td, cellData, rowData, row, col) {
                         $(td).html(
-                            `<span class="text-G">C</span><span class="text-A">${cellData}</span>`
+                            `<span class="text-G">C</span><span class="text-A">${cellData}</span>`,
                         );
                     },
                 },
@@ -1795,8 +2569,8 @@ const renderDataTableCaja = async (dataCaja) => {
                     return typeof i === "string"
                         ? parseFloat(i) || 0
                         : typeof i === "number"
-                        ? i
-                        : 0;
+                          ? i
+                          : 0;
                 };
 
                 var totalesPorTipo = api
@@ -1866,7 +2640,7 @@ const renderDataTableProv = async (dataProv) => {
                     targets: 1, // índice de columna
                     createdCell: function (td, cellData, rowData, row, col) {
                         $(td).html(
-                            `<span class="text-O">${cellData} Kg</span>`
+                            `<span class="text-O">${cellData} Kg</span>`,
                         );
                     },
                 },
@@ -1874,7 +2648,7 @@ const renderDataTableProv = async (dataProv) => {
                     targets: 2, // índice de columna
                     createdCell: function (td, cellData, rowData, row, col) {
                         $(td).html(
-                            `<span class="text-O">${cellData} Kg</span>`
+                            `<span class="text-O">${cellData} Kg</span>`,
                         );
                     },
                 },
@@ -1942,7 +2716,7 @@ const renderDataTableDetalleProv = async (dataProv) => {
                     targets: 1, // índice de columna
                     createdCell: function (td, cellData, rowData, row, col) {
                         $(td).html(
-                            `<span class="text-G">C</span><span class="text-A">${cellData}</span>`
+                            `<span class="text-G">C</span><span class="text-A">${cellData}</span>`,
                         );
                     },
                 },
@@ -1950,7 +2724,7 @@ const renderDataTableDetalleProv = async (dataProv) => {
                     targets: 2, // índice de columna
                     createdCell: function (td, cellData, rowData, row, col) {
                         $(td).html(
-                            `<span class="text-O">${cellData} Kg</span>`
+                            `<span class="text-O">${cellData} Kg</span>`,
                         );
                     },
                 },
@@ -1989,7 +2763,7 @@ const renderDataTableProyeccion = async (
     bodega,
     kilos,
     inventarioActualizado,
-    producciones
+    producciones,
 ) => {
     try {
         //====================================================
@@ -2040,7 +2814,7 @@ const renderDataTableProyeccion = async (
                     targets: 0, // índice de columna
                     createdCell: function (td, cellData, rowData, row, col) {
                         $(td).html(
-                            `<span class="text-G">C</span><span class="text-A">${cellData}</span>`
+                            `<span class="text-G">C</span><span class="text-A">${cellData}</span>`,
                         );
                     },
                 },
@@ -2049,8 +2823,8 @@ const renderDataTableProyeccion = async (
                     createdCell: function (td, cellData, rowData, row, col) {
                         $(td).html(
                             `${new Intl.NumberFormat("es-CL").format(
-                                cellData.toFixed(1)
-                            )}`
+                                cellData.toFixed(1),
+                            )}`,
                         );
                     },
                 },
@@ -2059,8 +2833,8 @@ const renderDataTableProyeccion = async (
                     createdCell: function (td, cellData, rowData, row, col) {
                         $(td).html(
                             `<span class="text-AZ">${new Intl.NumberFormat(
-                                "es-CL"
-                            ).format(cellData.toFixed(1))}</span>`
+                                "es-CL",
+                            ).format(cellData.toFixed(1))}</span>`,
                         );
                     },
                 },
@@ -2069,8 +2843,8 @@ const renderDataTableProyeccion = async (
                     createdCell: function (td, cellData, rowData, row, col) {
                         $(td).html(
                             `<span class="text-B">${new Intl.NumberFormat(
-                                "es-CL"
-                            ).format(cellData.toFixed(1))}</span>`
+                                "es-CL",
+                            ).format(cellData.toFixed(1))}</span>`,
                         );
                     },
                 },
@@ -2079,8 +2853,8 @@ const renderDataTableProyeccion = async (
                     createdCell: function (td, cellData, rowData, row, col) {
                         $(td).html(
                             `<span class="text">${new Intl.NumberFormat(
-                                "es-CL"
-                            ).format(cellData.toFixed(1))}</span>`
+                                "es-CL",
+                            ).format(cellData.toFixed(1))}</span>`,
                         );
                     },
                 },
@@ -2089,8 +2863,8 @@ const renderDataTableProyeccion = async (
                     createdCell: function (td, cellData, rowData, row, col) {
                         $(td).html(
                             `<span >${new Intl.NumberFormat("es-CL").format(
-                                cellData.toFixed(1)
-                            )}</span>`
+                                cellData.toFixed(1),
+                            )}</span>`,
                         );
                     },
                 },
@@ -2100,8 +2874,8 @@ const renderDataTableProyeccion = async (
                     createdCell: function (td, cellData, rowData, row, col) {
                         $(td).html(
                             `<span class="text">${new Intl.NumberFormat(
-                                "es-CL"
-                            ).format(cellData)}</span>`
+                                "es-CL",
+                            ).format(cellData)}</span>`,
                         );
                     },
                 },
@@ -2111,8 +2885,8 @@ const renderDataTableProyeccion = async (
                     createdCell: function (td, cellData, rowData, row, col) {
                         $(td).html(
                             `<span class="text-A">${new Intl.NumberFormat(
-                                "es-CL"
-                            ).format(cellData)}</span>`
+                                "es-CL",
+                            ).format(cellData)}</span>`,
                         );
                     },
                 },
@@ -2155,7 +2929,7 @@ const renderDataTableProyeccion = async (
                     targets: 0, // índice de columna
                     createdCell: function (td, cellData, rowData, row, col) {
                         $(td).html(
-                            `<span class="text-G">C</span><span class="text-A">${cellData}</span>`
+                            `<span class="text-G">C</span><span class="text-A">${cellData}</span>`,
                         );
                     },
                 },
@@ -2218,14 +2992,14 @@ const renderDataTableProyeccion = async (
                         uniques.each(function (d) {
                             if (d !== null && d !== undefined && d !== "") {
                                 $select.append(
-                                    `<option value="${d}">${d}</option>`
+                                    `<option value="${d}">${d}</option>`,
                                 );
                             }
                         });
 
                         $select.off("change").on("change", function () {
                             const val = $.fn.dataTable.util.escapeRegex(
-                                $(this).val()
+                                $(this).val(),
                             );
                             column
                                 .search(val ? `^${val}$` : "", true, false)
@@ -2294,14 +3068,14 @@ const renderDataTableProyeccion = async (
                         uniques.each(function (d) {
                             if (d !== null && d !== undefined && d !== "") {
                                 $select.append(
-                                    `<option value="${d}">${d}</option>`
+                                    `<option value="${d}">${d}</option>`,
                                 );
                             }
                         });
 
                         $select.off("change").on("change", function () {
                             const val = $.fn.dataTable.util.escapeRegex(
-                                $(this).val()
+                                $(this).val(),
                             );
                             column
                                 .search(val ? `^${val}$` : "", true, false)
@@ -2349,7 +3123,7 @@ const renderDataTableProyeccion = async (
                 emptyTable: "No hay datos disponibles en la tabla",
             },
         });
-        /* 
+
         $("#tablaInventarioDiario").DataTable({
             data: producciones,
             searching: true,
@@ -2365,7 +3139,7 @@ const renderDataTableProyeccion = async (
                     targets: 1, // índice de columna
                     createdCell: function (td, cellData, rowData, row, col) {
                         $(td).html(
-                            `<span class="text-G">C</span><span class="text-AG">${cellData}</span>`
+                            `<span class="text-G">C</span><span class="text-AG">${cellData}</span>`,
                         );
                     },
                 },
@@ -2386,7 +3160,7 @@ const renderDataTableProyeccion = async (
                 url: "https://cdn.datatables.net/plug-ins/1.13.5/i18n/es-ES.json",
                 emptyTable: "No hay datos disponibles en la tabla",
             },
-        }); */
+        });
     } catch (error) {
         console.error(error);
     }

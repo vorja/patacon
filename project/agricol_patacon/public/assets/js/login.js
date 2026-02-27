@@ -80,6 +80,7 @@ document.getElementById("loginForm").addEventListener("submit", async (e) => {
         });
         const dataUsuario = await response.json();
         const { data } = dataUsuario;
+        console.log(data)
         if (response.ok) {
             await fetch("/sesion", {
                 method: "POST",
@@ -96,7 +97,7 @@ document.getElementById("loginForm").addEventListener("submit", async (e) => {
             if (data.modulo === "administrativo") {
                 redirigirPorRolAdministrativo(data.modulo, data.usuario.rol);
             } else {
-                redirigirPorRol(data.modulo, data.usuario.rol);
+               redirigirPorRol(data.modulo, data.usuario.rol);
             }
         } else {
             Swal.fire({

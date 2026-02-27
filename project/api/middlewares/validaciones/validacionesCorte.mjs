@@ -3,6 +3,8 @@ import { celebrate, Joi, Segments } from "celebrate";
 export const validarCorte = celebrate({
   [Segments.BODY]: Joi.object().keys({
     fecha: Joi.date().required(),
+    inicio_corte: Joi.optional(),
+    fin_corte: Joi.optional(),
     rechazo_corte: Joi.number().required(),
     total_materia: Joi.number().required(),
     rendimiento_materia: Joi.number().optional(),

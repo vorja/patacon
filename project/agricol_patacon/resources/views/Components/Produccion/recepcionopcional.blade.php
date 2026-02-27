@@ -48,8 +48,8 @@
                     <h5 class="text-titles"><i class="fa-solid fa-calendar-day me-2" style="color: #ec6704"></i>Fecha
                         Produccion</h5>
                     <div class="border-bottom mb-3"></div>
-                    <input type="date" class="form-control form-control-lg shadow-sm text-center rounded" id="fecha" name="fecha"
-                        placeholder="Fecha Produccion" required>
+                    <input type="date" class="form-control form-control-lg shadow-sm text-center rounded" id="fecha"
+                        name="fecha" placeholder="Fecha Produccion" required>
                     <div class="invalid-feedback">
                         Este campo es obligatorio.
                     </div>
@@ -57,20 +57,25 @@
 
                 <input type="hidden" value="" class="form-control shadow-sm" id="idEncargo" name="idEncargo" required>
 
-                <div class="mb-3 col-6 col-md-3 mt-2">
+                <div class="mb-3 col-6 col-md-3 mt-2 position-relative">
                     <h5 class="text-titles"><i class="fa-solid fa-truck-front me-2" style="color: #ec6704"></i>
                         Proveedor</h5>
                     <div class="border-bottom mb-3"></div>
-                    <input class="form-control form-control-lg shadow-sm rounded" id="nombreProveedor" list="proveedorlist"
-                        placeholder="Lista de Proveedores." required autocomplete="off">
+
+                    <input class="form-control form-control-lg shadow-sm rounded" id="nombreProveedor" placeholder="Buscar proveedor..."
+                        required autocomplete="off">
+
+                    <!-- Lista de sugerencias -->
+                    <div class="list-group position-absolute w-100" id="suggestions"
+                        style="z-index: 1000; max-height: 200px; overflow-y: auto; display: none;">
+                    </div>
+
                     <input class="form-control" id="id_proveedor" name="id_proveedor" hidden required>
-                    <datalist id="proveedorlist">
-                        <!-- Aquí se llenarán los proveedores -->
-                    </datalist>
                     <div class="invalid-feedback">
                         Este campo es obligatorio.
                     </div>
                 </div>
+
                 <div class="mb-3 col-6 col-md-3 mt-4">
                     <h5 class="text-titles"><i class="fa-solid fa-seedling me-2" style="color: #ec6704"></i>Producto
                     </h5>
@@ -88,10 +93,12 @@
                     </div>
                 </div>
                 <div class="mb-3 col-6 col-md-3 mt-4">
-                    <h5 class="text-titles"><i class="fa-solid fa-tags me-2" style="color: #ec6704"></i>Lote Recepción</h5>
+                    <h5 class="text-titles"><i class="fa-solid fa-tags me-2" style="color: #ec6704"></i>Lote Recepción
+                    </h5>
                     <div class="border-bottom mb-3"></div>
-                    <input type="text" readonly class="form-control form-control-lg shadow-sm rounded text-center fw-semibold" id="lote_produccion"
-                      name="lote_produccion" required>
+                    <input type="text" readonly
+                        class="form-control form-control-lg shadow-sm rounded text-center fw-semibold"
+                        id="lote_produccion" name="lote_produccion" required>
                     <div class="invalid-feedback">
                         Este debe estar completo.
                     </div>
@@ -100,9 +107,8 @@
                     <h5 class="text-titles"><i class="fa-solid fa-users-line me-2"
                             style="color: #ec6704"></i>Responsable</h5>
                     <div class="border-bottom mb-3"></div>
-                    <input class="form-control form-control-lg shadow-sm rounded" id="nombreResponsable" list="empleadolist"
-                        name="nombreResponsable" required 
-                        autocomplete="off">
+                    <input class="form-control form-control-lg shadow-sm rounded" id="nombreResponsable"
+                        list="empleadolist" name="nombreResponsable" required autocomplete="off">
                     <input class="" type="hidden" id="responsableid" name="responsableid" required>
                     <datalist id="empleadolist">
                     </datalist>
@@ -140,14 +146,16 @@
                         <label for="subTotal" class="form-label">Sub Total</label>
 
                         <input type="number" min="0" disabled value="0"
-                            class="form-control form-control-lg text-center numeric fw-semibold" id="subTotal" name="subTotal" required>
+                            class="form-control form-control-lg text-center numeric fw-semibold" id="subTotal"
+                            name="subTotal" required>
                     </div>
                     <div class="mb-3 mb-3 col-6 col-md-4">
                         <label for="pesoTotal" class="form-label"> <i class="fa-solid fa-scale-balanced me-2"
                                 style="color: #ec6704"></i>Peso Total</label>
 
                         <input type="number" min="0" disabled value="0"
-                            class="form-control form-control-lg text-center numeric fw-semibold" id="pesoTotal" name="pesoTotal">
+                            class="form-control form-control-lg text-center numeric fw-semibold" id="pesoTotal"
+                            name="pesoTotal">
                     </div>
 
                 </div>
@@ -184,14 +192,15 @@
                             </div>
                         </div>
                         <div class="row d-flex justify-content-between p-3 mt-4">
-                            <div class="col">
+                            <div class="col-6">
                                 <h4 class="fw-semibold text-uppercase mt-3"
                                     style="color:#6c780d; font-family: Arial, Helvetica, sans-serif; ">
                                     <i class="fa-solid fa-kaaba  me-2" style="color:#ec6704;"></i>
-                                    Canastillas
+                                    Canastillas / Racimos
                                 </h4>
-                                <input type="number" class="form-control form-control-lg rounded shadow-sm fs-4 text-center numeric"
-                                    min="0" placeholder="# Canastillas" id="canastillas" required>
+                                <input type="number"
+                                    class="form-control form-control-lg rounded shadow-sm fs-4 text-center numeric"
+                                    min="0" placeholder="# Canastillas / Racimos" id="canastillas" required>
 
                                 <div class="invalid-feedback">
                                     Este campo es obligatorio.
@@ -203,7 +212,8 @@
                                     <i class="fa-solid fa-scale-unbalanced-flip me-2" style="color:#ec6704;"></i>
                                     Peso
                                 </h4>
-                                <input type="number" class="form-control form-control-lg rounded shadow-sm fs-4 text-center numeric"
+                                <input type="number"
+                                    class="form-control form-control-lg rounded shadow-sm fs-4 text-center numeric"
                                     min="0" placeholder="Peso Kg" id="pesoKg" required>
                                 <div class="invalid-feedback">
                                     Este campo es obligatorio.
@@ -247,8 +257,12 @@
                         <i class="fa-solid fa-xmark fs-4"></i>
                     </button>
 
-                    <button type="button" class="btn btn-lg fs-2 p-3 px-4 text-white btn-Obtener" id="btnObtenerCanastillas"
-                        style="background-color: #6c780d">
+                    <button type="button" class="btn btn-lg fs-2 p-3 px-4 btn-warning text-white" id="clearButton">
+                        <i class="fa-solid fa-trash-can fs-4"></i> 
+                    </button>
+
+                    <button type="button" class="btn btn-lg fs-2 p-3 px-4 text-white btn-Obtener"
+                        id="btnObtenerCanastillas" style="background-color: #6c780d">
                         <i class="fa-solid fa-save fs-4"></i>
                     </button>
                 </div>
@@ -258,7 +272,8 @@
 
     <button type="button" data-tooltip="Observaciones"
         class="btn  flotante-coments position-fixed m-4 border-0 align-content-center rounded-pill"
-        data-bs-toggle="offcanvas" data-bs-target="#offcanvasRight" aria-controls="offcanvasRight" style="background-color: #34a1e9; color: #f5f7ff;">
+        data-bs-toggle="offcanvas" data-bs-target="#offcanvasRight" aria-controls="offcanvasRight"
+        style="background-color: #34a1e9; color: #f5f7ff;">
         <i class="ft-message-square text-white fs-2"></i>
     </button>
 
@@ -279,7 +294,8 @@
             </div>
         </div>
     </div>
-    <button id="btnGuardar" type="submit" class="btn  btn-lg w-100 fw-bold fs-4 rounded-4" style="background-color: #ec6704; color: #f5f7ff;">
+    <button id="btnGuardar" type="submit" class="btn  btn-lg w-100 fw-bold fs-4 rounded-4"
+        style="background-color: #ec6704; color: #f5f7ff;">
         <i class="fa-solid fa-floppy-disk fs-3 me-2"></i>GUARDAR REGISTRO</button>
 </form>
 

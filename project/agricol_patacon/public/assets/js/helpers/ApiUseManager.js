@@ -1,10 +1,20 @@
+export const Url = "http://localhost:3105";
+
+let fecha = new Date();
+
+export const fechaHoy = "2026-02-25"
+/* `${fecha.getFullYear()}-${
+    fecha.getMonth() + 1
+}-${fecha.getDate()}`;   */
+
+
 // ============================================
 // SERVICIO API PARA EL CLIENTE
 // ============================================
 
 export class ApiService {
     constructor(baseURL) {
-        this.baseURL = baseURL || "http://localhost:3105/";
+        this.baseURL = baseURL || Url;
     }
 
     async request(endpoint, options = {}) {
@@ -105,27 +115,27 @@ export class AlertManager {
         const alert = document.createElement("div");
         alert.className = `alert alert-${type}`;
         alert.style.cssText = `
-      padding: 16px 20px;
-      margin-bottom: 12px;
-      border-radius: 8px;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-      animation: slideIn 0.3s ease-out;
-      background: ${this.getBackgroundColor(type)};
-      color: ${this.getTextColor(type)};
-      border-left: 4px solid ${this.getBorderColor(type)};
-      display: flex;
-      justify-content: space-between;
-      align-items: start;
-    `;
+        padding: 16px 20px;
+        margin-bottom: 12px;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        animation: slideIn 0.3s ease-out;
+        background: ${this.getBackgroundColor(type)};
+        color: ${this.getTextColor(type)};
+        border-left: 4px solid ${this.getBorderColor(type)};
+        display: flex;
+        justify-content: space-between;
+        align-items: start;
+        `;
 
         // Contenido
         let content = `
-      <div>
-        <strong style="display: block; margin-bottom: 4px;">${this.getIcon(
-            type
-        )} ${this.getTitle(type)}</strong>
-        <p style="margin: 0; font-size: 14px;">${message}</p>
-    `;
+        <div>
+            <strong style="display: block; margin-bottom: 4px;">${this.getIcon(
+                type
+            )} ${this.getTitle(type)}</strong>
+            <p style="margin: 0; font-size: 14px;">${message}</p>
+        `;
 
         // Agregar errores si existen
         if (errors && errors.length > 0) {

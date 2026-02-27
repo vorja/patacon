@@ -1,9 +1,11 @@
-import { AlertManager, ApiService } from "../../helpers/ApiUseManager.js"; // Manejador de Alertas del servidor
+import { AlertManager, ApiService, Url } from "../../helpers/ApiUseManager.js"; // Manejador de Alertas del servidor
 import { AlertSystem } from "../../helpers/AlertasManger.js"; // Manjador de Alertas del cliente
 
 import notificationManager from "../../helpers/NotificacionesManger.js";
 import eventManager from "../../helpers/EventsManager.js";
-const API_ROLES = new ApiService("http://localhost:3105/data/rol");
+
+const API_ROLES = new ApiService(Url + "/data/rol");
+
 const alerts = new AlertManager();
 
 const token = document

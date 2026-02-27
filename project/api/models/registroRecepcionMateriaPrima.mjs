@@ -28,6 +28,10 @@ const RegistroRecepcionMateriaPrima = sequelize.define(
       type: DataTypes.DATEONLY,
       allowNull: false,
     },
+    brix:{
+      type: DataTypes.FLOAT,
+      allowNull: true,
+    },
     producto: {
       type: DataTypes.STRING(250),
       allowNull: false,

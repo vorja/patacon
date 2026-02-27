@@ -137,4 +137,35 @@ class PdfController extends Controller
             ], 500);
         }
     }
+
+    public function contenedorPDF(Request $request)
+    {
+        $data = $request->all();
+
+        // Verificar si los datos vienen en el formato de la API
+        if (!isset($data['data']['produccion']) || !isset($data['data']['detalleEmpaque'])) {
+            return response()->json([
+                'error' => 'Datos incompletos',
+                'data' => $data
+            ], 400);
+        }
+
+        try {
+            $apiData = $data['data'];
+
+            $pdf = Pdf::loadView('reportes.contenedor', [
+                'produccion' => $apiData['produccion'][0] ?? [],
+                'registroAreaEmpaque' => $apiData['registroAreaEmpaque'][0] ?? [],
+                'detalleEmpaque' => $apiData['detalleEmpaque'] ?? [],
+            ])->setPaper('A4', 'landscape');
+
+            return $pdf->stream('reporte-contenedor.pdf');
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => $e->getMessage(),
+                'line' => $e->getLine(),
+                'file' => $e->getFile()
+            ], 500);
+        }
+    }
 }

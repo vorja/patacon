@@ -17,6 +17,14 @@ const RegistroAreaCorte = sequelize.define(
       type: DataTypes.DATEONLY,
       allowNull: false,
     },
+    inicio_corte: {
+      type: DataTypes.TIME,
+      allowNull: true,
+    },
+    fin_corte: {
+      type: DataTypes.TIME,
+      allowNull: true,
+    },
     observaciones: {
       type: DataTypes.TEXT,
       allowNull: true,
@@ -58,7 +66,7 @@ const RegistroAreaCorte = sequelize.define(
   {
     tableName: "registro_area_corte",
     timestamps: false,
-  }
+  },
 );
 RegistroAreaCorte.belongsTo(Responsable, {
   as: "responsable",

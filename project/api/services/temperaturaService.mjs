@@ -1,4 +1,4 @@
-import { col, fn, Op } from "sequelize";
+import { col, fn, Op, literal } from "sequelize";
 import moment from "moment";
 import dayjs from "dayjs";
 import RegistroTemperatura from "../models/registroTemperatura.mjs";
@@ -67,13 +67,7 @@ export const getAllMonth = async (id, fecha) => {
       {
         model: RegistroTemperatura,
         attributes: [
-          [
-            Sequelize.fn(
-              "MONTHNAME",
-              Sequelize.col("RegistroTemperatura.fecha_mes")
-            ),
-            "Mes",
-          ],
+          [fn("MONTHNAME", col("RegistroTemperatura.fecha_mes")), "Mes"],
         ],
         where: {
           fecha_mes: {
@@ -97,7 +91,7 @@ export const getAllMonth = async (id, fecha) => {
       "horario",
       "hora",
       "temperatura",
-      [Sequelize.literal(`CONCAT(Responsable.nombre)`), "responsable"],
+      [literal(`CONCAT(Responsable.nombre)`), "responsable"],
     ],
     where: {
       id_cuarto: id,

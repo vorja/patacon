@@ -210,6 +210,18 @@
                                 </div>
                                 <div class="col">
                                     <h5 class="fw-semibold text-uppercase mt-3" style="color:#6c780d;">
+                                            <i class="fa-solid fa-circle-info me-2" style="color:#ec6704;"></i> Lote
+                                    </h5>
+                                        <select class="form-control form-control-lg rounded shadow-sm fs-5 text-center" id="selectLotePaquete"
+                                             name="loteProduccion[]" autocomplete="off" required>
+                                                <option value="" selected disabled>Seleccione una fecha primero</option>
+                                        </select>
+                                    <div class="invalid-feedback">
+                                        Este campo es obligatorio.
+                                     </div>
+                                </div>
+                                <div class="col">
+                                    <h5 class="fw-semibold text-uppercase mt-3" style="color:#6c780d;">
                                         <i class="fa-solid fa-circle-info me-2" style="color:#ec6704;"></i> Variedad
                                     </h5>
                                     <input type="text" list="variedadlist"
@@ -247,19 +259,6 @@
                                         <option value="P">Pinton</option>
                                     </datalist>
                                 </div>
-                                <div class="col">
-                                    <h5 class="fw-semibold text-uppercase mt-3" style="color:#6c780d;">
-                                        <i class="fa-solid fa-circle-info me-2" style="color:#ec6704;"></i> Lote
-                                    </h5>
-                                    <input type="text"
-                                        class="loteEmpaque form-control form-control-lg rounded shadow-sm fs-5 text-center"
-                                        placeholder="Lote de Produccion.." id="loteProduccion" name="loteProduccion[]"
-                                        autocomplete="off" required readonly>
-                                    <div class="invalid-feedback">
-                                        Este campo es obligatorio.
-                                    </div>
-                                </div>
-
                             </div>
                             <div class="row d-flex justify-content-between mt-2 p-3">
                                 <div class="col-4">

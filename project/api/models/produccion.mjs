@@ -15,6 +15,10 @@ const Produccion = sequelize.define(
       allowNull: false,
       unique: true,
     },
+    cliente_relacionado:{
+      type: DataTypes.STRING(45),
+      allowNull: true,
+    },
     fecha_creacion: {
       type: DataTypes.DATEONLY,
       allowNull: false,

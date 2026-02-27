@@ -19,7 +19,7 @@ const ROLES_PROTEGIDOS = [
 
 export const create = async (data) => {
   const usuarios = await Usuarios.findOne({
-    where: { [Op.and]: [{ nombre: data.user_name }] },
+    where: { [Op.and]: [{ user_name: data.user_name }] },
   });
   if (usuarios)
     throw new Error("Ya Hay Un Usuario registrado con ese usuario.");

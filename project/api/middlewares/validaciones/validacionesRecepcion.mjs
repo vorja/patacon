@@ -4,6 +4,7 @@ export const validarRecepcion = celebrate({
   [Segments.BODY]: Joi.object().keys({
     fecha: Joi.date().required(),
     fecha_procesamiento: Joi.date().required(),
+    brix: Joi.number().optional(),
     producto: Joi.string().required(),
     materia_recep: Joi.number().required(),
     cantidad: Joi.number().required(),

@@ -12,7 +12,7 @@
             <div class="carousel-inner">
                 <div class="carousel-item active">
                     <div class="content d-flex justify-content gap-3">
-                        <div class="col-2 mt-2 mb-3">
+                        <div class="col-4 mt-2 mb-3">
                             <div class="card border-0 rounded-4 shadow-sm">
                                 <div class="card-body">
                                     <div class="d-flex justify-content-between align-items-center">
@@ -151,19 +151,19 @@
 
                     <div class="mb-3 col-md-6">
                         <label for="nombre" class="form-label">Nombre</label>
-                        <input type="text" class="form-control rounded-3 shadow-sm" name="nombre" id="nombre" required
+                        <input type="text" class="form-control rounded-3 shadow-sm" name="nombre" id="nombre_info" required
                             autocomplete="off">
                     </div>
 
                     <div class="mb-3 col-md-6">
                         <label for="documento" class="form-label">Identificación o NIT.</label>
-                        <input type="number" class="form-control  shadow-sm" name="documento" id="documento" required>
+                        <input type="number" class="form-control  shadow-sm" name="documento" id="documento_info" required>
                     </div>
 
 
                     <div class="mb-3 col-md-6">
                         <label for="telefono" class="form-label">Telefono.</label>
-                        <input type="number" name="telefono" id="telefono" class="form-control  shadow-sm " required>
+                        <input type="number" name="telefono" id="telefono_info" class="form-control  shadow-sm " required>
                     </div>
 
                 </div>

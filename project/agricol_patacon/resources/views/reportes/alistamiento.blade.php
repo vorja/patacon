@@ -170,6 +170,7 @@
                 <tr>
                     <td>{{ $key + 1 }}</td>
                     <td>{{$item['proveedor'] ?? ''}}</td>
+                    <td>{{ $item['lote'] ?? '' }}</td>
                     <td>{{$item['cantidad'] ?? ''}}</td>
                     <td>{{$item['rechazo'] ?? ''}}</td>
                     <td>{{$item['maduro'] ?? ''}}</td>

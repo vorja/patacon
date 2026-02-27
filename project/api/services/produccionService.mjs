@@ -125,6 +125,7 @@ const enrichCorteWithDProv = async (cortes) => {
     attributes: [
       "id_corte",
       "fecha_produccion",
+      "lote_proveedor",
       "totalMateria",
       "rechazo",
       "rendimiento",
@@ -463,23 +464,44 @@ const calcularRendimientoTotal = (recepciones, empaques) => {
 };
 
 const calcularRendimientoProveedores = (recepciones, cortes) => {
-  return recepciones
-    .map((data) => {
-      const proveedor = data.proveedor.nombre;
-      const corteFecha = cortes.find((c) => {
-        return c.proveedor.nombre === proveedor;
-      });
+  const resultado = {};
 
-      if (!corteFecha) return null;
-      return {
-        proveedor: data.proveedor.nombre ?? "",
+  recepciones.forEach((data) => {
+    // Validar que exista el proveedor
+    if (!data.proveedor || !data.proveedor.nombre) return;
+
+    const proveedor = data.proveedor.nombre;
+    const loteRecepcion = data.lote; // Ahora SÍ existe este campo
+
+    // Buscar el corte que coincida con el proveedor Y el lote
+    const corteFecha = cortes.find((c) => {
+      return (
+        c.proveedor &&
+        c.proveedor.nombre === proveedor &&
+        c.lote_proveedor === loteRecepcion
+      ); // Comparar por lote
+    });
+
+    if (!corteFecha) return;
+
+    // Clave única por proveedor + lote + id_corte
+    const clave = `${proveedor}-${corteFecha.lote_proveedor}-${corteFecha.id_corte}`;
+
+    if (resultado[clave]) {
+      resultado[clave].materia += data.cantidad;
+    } else {
+      resultado[clave] = {
+        proveedor: proveedor,
+        lote_proveedor: corteFecha.lote_proveedor,
         id_corte: corteFecha.id_corte,
         materia: data.cantidad,
         totalMateria: corteFecha.totalMateria,
         rendimiento: corteFecha.rendimiento,
       };
-    })
-    .filter(Boolean);
+    }
+  });
+
+  return Object.values(resultado);
 };
 
 const calcularRechazoTotal = (
@@ -1080,6 +1102,7 @@ export const getAll = async () => {
   return lista.map((op) => ({
     id: op.id,
     Lote: op.lote_produccion,
+    cliente: op.cliente_relacionado,
     Fecha: op.fecha_creacion,
     Cierre: op.fecha_cierre,
     Estado: op.estado,
@@ -1091,7 +1114,7 @@ export const getAll = async () => {
 export const getProducciones = async () => {
   const lista = await Produccion.findAll({
     include: { model: Responsable, as: "responsable", attributes: ["nombre"] },
-    where: { estado: { [Op.ne]: ESTADO_FINALIZADO } },
+    where: { estado: 1},
   });
 
   if (!lista || lista.length === 0) {
@@ -1113,159 +1136,161 @@ export const getProducciones = async () => {
 
 // Informacion de Proyecciones.
 export const getProyeccionContenedor = async (orden) => {
-  const produccion = await Produccion.findOne({ where: { id: orden } });
-  if (!produccion) {
-    throw new Error("La Orden de Produccion no existe.");
-  }
+  try {
 
-  const solicitado = await CajasProduccion.findAll({
-    where: { id_produccion: orden },
-  });
-
-  if (!solicitado) {
-    throw new Error("No se ha establecido una solicitud de cajas.");
-  }
-
-  const inventarioData = await Bodega.findAll({
-    attributes: [
-      "fecha_produccion",
-      "tipo_a",
-      "tipo_b",
-      "tipo_c",
-      "tipo_af",
-      "tipo_bh",
-      "tipo_xl",
-      "tipo_cil",
-      "tipo_p",
-    ],
-    raw: true,
-  });
-
-  if (inventarioData.length == 0) {
-    throw new Error("No Hay Cajas en Bodega, Actualmente.");
-  }
-
-  const registrosProduccion = await RegistroAreaFritura.findAll({
-    attributes: ["id", "fecha"],
-    where: { orden: orden },
-  });
-
-  if (registrosProduccion.length == 0) {
-    throw new Error("No Hay Registro de Fritura, Actualmente.");
-  }
-
-  const infoProduccion = (
-    await Promise.all(
-      registrosProduccion.map(async (item) => {
-        const fechaProduccion = item.fecha;
-        const bajadas = await DetalleAreaFritura.findAll({
-          attributes: ["lote_produccion", "tipo", "peso", "canastas"],
-          where: { id_fritura: item.id },
-        });
-
-        const totalProduccion = bajadas.reduce((acc, item) => {
-          const cajaTipo = item.tipo;
-          if (!acc[cajaTipo]) {
-            acc[cajaTipo] = {
-              fecha_produccion: fechaProduccion,
-              lote_produccion: item.lote_produccion,
-              tipo: cajaTipo,
-              canastas: 0,
-              totalMateria: 0,
-            };
-          }
-
-          acc[cajaTipo].totalMateria += item.peso;
-          acc[cajaTipo].canastas += item.canastas || 0;
-
-          return acc;
-        }, {});
-
-        const datos = Object.values(totalProduccion);
-
-        const resultado = datos.map((item) => {
-          const totalKg = item.canastas * 1.5;
-          const totalMateria = item.totalMateria - totalKg;
-
-          console.log(totalMateria);
-          return {
-            ...item,
-            totalMateria,
-          };
-        });
-
-        console.log("formateado: ", resultado);
-
-        return resultado;
-
-        /* return lotesProduccion; */
-      })
-    )
-  ).flat();
-
-  const registrosEmpaque = await RegistroAreaEmpaque.findAll({
-    attributes: ["id", "promedio_peso"],
-    where: { orden: orden },
-  });
-
-  if (registrosEmpaque.length == 0) {
-    throw new Error("No Hay Registros de Empaque, Actualmente.");
-  }
-
-  const inventarioCajas = (
-    await Promise.all(
-      registrosEmpaque.map(async (item) => {
-        const pesoPromedio = item.promedio_peso || 0;
-        const registroEmpaque = await DetalleEmpaque.findAll({
-          attributes: [
-            "fecha_produccion",
-            "tipo",
-            "numero_canastas",
-            "total_cajas",
-          ],
-          where: { id_empaque: item.id },
-        });
-
-        return registroEmpaque.map((detalle) => ({
-          fecha_produccion: detalle.fecha_produccion,
-          tipo: detalle.tipo,
-          numero_canastas: detalle.numero_canastas || 0,
-          total_cajas: detalle.total_cajas || 0,
-          totalMateria: (detalle.total_cajas || 0) * pesoPromedio,
-        }));
-      })
-    )
-  ).flat();
-
-  // AHORA SÍ AGRUPAMOS TODO
-  const inventarioAgrupado = inventarioCajas.reduce((acc, item) => {
-    const key = `${item.fecha_produccion}_${item.tipo}`;
-
-    if (!acc[key]) {
-      acc[key] = {
-        fecha_produccion: item.fecha_produccion,
-        tipo: item.tipo,
-        numero_canastas: 0,
-        total_cajas: 0,
-        totalMateria: 0,
-      };
+    const produccion = await Produccion.findOne({ where: { id: orden } });
+    if (!produccion) {
+      return { success: false, message: "La Orden de Producción no existe." };
     }
 
-    acc[key].numero_canastas += item.numero_canastas;
-    acc[key].total_cajas += item.total_cajas;
-    acc[key].totalMateria += item.totalMateria;
+    const solicitado = await CajasProduccion.findAll({
+      where: { id_produccion: orden },
+    });
 
-    return acc;
-  }, {});
+    if (!solicitado || solicitado.length === 0) {
+      return { success: false, message: "No se ha establecido una solicitud de cajas." };
+    }
 
-  const resultado = Object.values(inventarioAgrupado);
+    const inventarioData = await Bodega.findAll({
+      attributes: [
+        "fecha_produccion",
+        "tipo_a",
+        "tipo_b",
+        "tipo_c",
+        "tipo_af",
+        "tipo_bh",
+        "tipo_xl",
+        "tipo_cil",
+        "tipo_p",
+        "estado",
+      ],
+      raw: true,
+      where: { orden }
+    });
 
-  return {
-    solicitud: solicitado,
-    bodega: inventarioData,
-    inventarioCajas: resultado,
-    inventarioProduccion: infoProduccion,
-  };
+    if (!inventarioData.length) {
+      return { success: false, message: "No hay cajas en bodega actualmente." };
+    }
+
+    const registrosProduccion = await RegistroAreaFritura.findAll({
+      attributes: ["id", "fecha"],
+      where: { orden },
+    });
+
+    if (!registrosProduccion.length) {
+      return { success: false, message: "No hay registros de fritura actualmente." };
+    }
+
+    const infoProduccion = (
+      await Promise.all(
+        registrosProduccion.map(async (item) => {
+          const fechaProduccion = item.fecha;
+
+          const bajadas = await DetalleAreaFritura.findAll({
+            attributes: ["lote_produccion", "tipo", "peso", "canastas"],
+            where: { id_fritura: item.id },
+          });
+
+          const totalProduccion = bajadas.reduce((acc, it) => {
+            const tipo = it.tipo;
+
+            if (!acc[tipo]) {
+              acc[tipo] = {
+                fecha_produccion: fechaProduccion,
+                lote_produccion: it.lote_produccion,
+                tipo,
+                canastas: 0,
+                totalMateria: 0,
+              };
+            }
+
+            acc[tipo].totalMateria += it.peso;
+            acc[tipo].canastas += it.canastas || 0;
+
+            return acc;
+          }, {});
+
+          return Object.values(totalProduccion).map((it) => {
+            const totalKg = it.canastas * 1.5;
+            return {
+              ...it,
+              totalMateria: (it.totalMateria - totalKg).toFixed(1),
+            };
+          });
+        })
+      )
+    ).flat();
+
+    const registrosEmpaque = await RegistroAreaEmpaque.findAll({
+      attributes: ["id", "promedio_peso"],
+      where: { orden },
+    });
+
+    if (!registrosEmpaque.length) {
+      return { success: false, message: "No hay registros de empaque actualmente." };
+    }
+
+    const inventarioCajas = (
+      await Promise.all(
+        registrosEmpaque.map(async (item) => {
+          const pesoPromedio = item.promedio_peso || 0;
+
+          const registroEmpaque = await DetalleEmpaque.findAll({
+            attributes: [
+              "fecha_produccion",
+              "tipo",
+              "numero_canastas",
+              "total_cajas",
+            ],
+            where: { id_empaque: item.id },
+          });
+
+          return registroEmpaque.map((detalle) => ({
+            fecha_produccion: detalle.fecha_produccion,
+            tipo: detalle.tipo,
+            numero_canastas: detalle.numero_canastas || 0,
+            total_cajas: detalle.total_cajas || 0,
+            totalMateria: (detalle.total_cajas || 0) * pesoPromedio,
+          }));
+        })
+      )
+    ).flat();
+
+    const inventarioAgrupado = inventarioCajas.reduce((acc, item) => {
+      const key = `${item.fecha_produccion}_${item.tipo}`;
+
+      if (!acc[key]) {
+        acc[key] = {
+          fecha_produccion: item.fecha_produccion,
+          tipo: item.tipo,
+          numero_canastas: 0,
+          total_cajas: 0,
+          totalMateria: 0,
+        };
+      }
+
+      acc[key].numero_canastas += item.numero_canastas;
+      acc[key].total_cajas += item.total_cajas;
+      acc[key].totalMateria += item.totalMateria;
+
+      return acc;
+    }, {});
+
+    return {
+      success: true,
+      solicitud: solicitado,
+      bodega: inventarioData,
+      inventarioCajas: Object.values(inventarioAgrupado),
+      inventarioProduccion: infoProduccion,
+    };
+
+  } catch (error) {
+    console.error(error);
+    return {
+      success: false,
+      message: "Error interno al obtener la proyección.",
+    };
+  }
 };
 
 // Trae el rendimiento de todos los lotes de Producción de un contenedor.
@@ -1365,6 +1390,7 @@ export const getPerformanceDay = async (fecha) => {
     "fecha",
     "cantidad",
     "cant_defectos",
+    "lote",
   ]);
 
   if (recepciones.length === 0) {
@@ -1600,64 +1626,111 @@ export const getPerformanceProv = async (idProveedor, fecha) => {
     throw new Error("El proveedor no existe.");
   }
 
-  // Obtener datos
+  // Obtener datos filtrados por proveedor y fecha
   const recepciones = await fetchRecepciones(
     {
       [Op.and]: [{ id_proveedor: idProveedor }, { fecha: fecha }],
     },
     true,
-    ["id", "fecha", "cantidad", "cant_defectos", "lote"]
+    ["id", "fecha", "cantidad", "cant_defectos", "lote"],
   );
 
   if (recepciones.length === 0) {
     throw new Error(
-      "No hay Registros de Recepciones Disponibles con este proveedor."
+      "No hay Registros de Recepciones Disponibles con este proveedor en la fecha especificada.",
     );
   }
 
   const fechas = [{ fechaProduccion: fecha }];
 
-  const alistamiento = await enrichAlistamientoWithProv(idProveedor);
+  // Filtramos alistamiento por proveedor y fecha
+  const alistamientoRaw = await enrichAlistamientoWithProv(idProveedor);
+  const alistamiento = alistamientoRaw.filter((item) => {
+    const fechaItem = item.info?.[0]?.fecha;
+    return (
+      fechaItem &&
+      new Date(fechaItem).toDateString() === new Date(fecha).toDateString()
+    );
+  });
 
-  const cortes = await enrichCortesWithProv(idProveedor);
+  // Filtramos cortes por proveedor y fecha
+  const cortesRaw = await enrichCortesWithProv(idProveedor);
+  const cortes = cortesRaw.filter((item) => {
+    const fechaItem = item.fecha_produccion || item.info?.[0]?.fecha;
+    return (
+      fechaItem &&
+      new Date(fechaItem).toDateString() === new Date(fecha).toDateString()
+    );
+  });
 
-  const fritura = await enrichFrituraWithProv(idProveedor);
+  // Filtramos fritura por proveedor y fecha
+  const frituraRaw = await enrichFrituraWithProv(idProveedor);
+  const fritura = frituraRaw.filter((item) => {
+    const fechaItem = item.info?.[0]?.fecha;
+    return (
+      fechaItem &&
+      new Date(fechaItem).toDateString() === new Date(fecha).toDateString()
+    );
+  });
 
-  const empaques = await enrichEmpaqueWithProv(idProveedor);
+  // Filtramos empaques por proveedor y fecha (usando fecha_produccion)
+  const empaquesRaw = await enrichEmpaqueWithProv(idProveedor);
+  const empaques = empaquesRaw.filter((item) => {
+    const fechaItem = item.fecha_produccion;
+    return (
+      fechaItem &&
+      new Date(fechaItem).toDateString() === new Date(fecha).toDateString()
+    );
+  });
 
-  // Calcular rendimientos
-  const rendimientoMateria = calcularRendimientoMateriaProv(
-    fechas,
-    cortes,
-    recepciones
-  );
+  // Verificar si hay datos después del filtrado
+  if (cortes.length === 0) {
+    console.warn(
+      "No hay registros de corte para este proveedor en la fecha especificada",
+    );
+  }
 
-  const rendimientoFritura = calcularRendimientoFrituraProv(
-    fechas,
-    fritura,
-    cortes
-  );
+  if (fritura.length === 0) {
+    console.warn(
+      "No hay registros de fritura para este proveedor en la fecha especificada",
+    );
+  }
 
-  const rendimientoHFritura = calcularRendimientoHastaFrituraProv(
-    fechas,
-    fritura,
-    recepciones
-  );
+  if (empaques.length === 0) {
+    console.warn(
+      "No hay registros de empaque para este proveedor en la fecha especificada",
+    );
+  }
+
+  // Calcular rendimientos (solo si hay datos)
+  const rendimientoMateria =
+    cortes.length > 0
+      ? calcularRendimientoMateriaProv(fechas, cortes, recepciones)
+      : [];
+
+  const rendimientoFritura =
+    fritura.length > 0 && cortes.length > 0
+      ? calcularRendimientoFrituraProv(fechas, fritura, cortes)
+      : [];
+
+  const rendimientoHFritura =
+    fritura.length > 0
+      ? calcularRendimientoHastaFrituraProv(fechas, fritura, recepciones)
+      : [];
 
   const rendimientoEmpaque = calcularRendimientoEmpaqueProv(
     fechas,
     empaques,
-    fritura
+    fritura,
   );
 
   const rendimientoTotalProv = calcularRendimientoTotalProv(
     recepciones,
-    empaques
+    empaques,
   );
 
+  // cajas se calcula con los empaques filtrados
   const cajas = formatEmpaqueProv(empaques);
-
-  /*const totalCanastas = calcularCanastasProv(fechas, fritura); */
 
   const data = formatEstructura(
     fechas,
@@ -1665,7 +1738,7 @@ export const getPerformanceProv = async (idProveedor, fecha) => {
     rendimientoFritura,
     rendimientoHFritura,
     rendimientoEmpaque,
-    rendimientoTotalProv
+    rendimientoTotalProv,
   );
 
   const rechazo = calcularRechazoTotalProv(
@@ -1673,17 +1746,24 @@ export const getPerformanceProv = async (idProveedor, fecha) => {
     recepciones,
     fritura,
     empaques,
-    cortes
+    cortes,
   );
 
   return {
     data,
     rechazo,
-    cajas,
-    empaques,
+    cajas, // Ahora cajas solo mostrará los tipos de la fecha filtrada
+    empaques, // Ahora empaques solo muestra los registros de la fecha filtrada
     recepcion: recepciones,
     cortes: cortes,
     fritura: fritura,
+    metadata: {
+      fecha: fecha,
+      proveedor: proveedor.nombre,
+      tieneCortes: cortes.length > 0,
+      tieneFritura: fritura.length > 0,
+      tieneEmpaque: empaques.length > 0,
+    },
   };
 };
 
@@ -1710,23 +1790,47 @@ export const asigCajas = async (data) => {
   const cajasProduccion = await CajasProduccion.findOne({
     where: { id_produccion: data[0].id_produccion },
   });
+
   if (cajasProduccion) {
-    throw new Error(
-      "Ya se ha proporcionado referencias, Asigne una valida."
-    );
+    throw new Error("Ya se ha proporcionado referencias, Asigne una valida.");
   }
 
+  // Calcular la suma de numero_cajas
+  const sumaCajas = data.reduce(
+    (total, item) => total + (item.numero_cajas || 0),
+    0,
+  );
+
+  // Crear las cajas de producción
   const asignacion = await CajasProduccion.bulkCreate(data);
 
   if (!asignacion) {
-    throw new Error("No se pudo asignar las referencias..");
+    throw new Error("No se pudo asignar las referencias.");
   }
+
+  // Actualizar el campo numero_cajas en Produccion
+  await Produccion.update(
+    {
+      numero_cajas: sumaCajas,
+    },
+    {
+      where: { id: data[0].id_produccion },
+    },
+  );
 
   return asignacion;
 };
 
 export const getById = async (id) => {
-  return await Produccion.findByPk(id);
+  return await Produccion.findByPk(id, {
+    include: [
+      {
+        model: Responsable,
+        as: "responsable",
+        attributes: ["id", "nombre"], // Añade más campos si necesitas
+      },
+    ],
+  });
 };
 
 export const update = async (id, data) => {
@@ -1743,7 +1847,7 @@ export const statusDelete = async (id) => {
   if (!produccion) {
     throw new Error("Produccion no encontrada.");
   }
-  return await produccion.update({ estado_sincronizado: ESTADO_INACTIVO });
+  return await produccion.update({ estado: ESTADO_INACTIVO });
 };
 
 export const statusProceso = async (id) => {

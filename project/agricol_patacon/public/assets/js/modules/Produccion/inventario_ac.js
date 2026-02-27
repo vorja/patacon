@@ -1,8 +1,9 @@
-import { ApiService, AlertManager } from "../../helpers/ApiUseManager.js";
+import { ApiService, AlertManager, Url } from "../../helpers/ApiUseManager.js";
 
-const apiInventario = new ApiService("http://localhost:3105/config/bodega");
-const apiLotes = new ApiService("http://localhost:3105/data/empaque");
-const apiEmpleados = new ApiService("http://localhost:3105/data/empleados");
+const apiInventario = new ApiService(Url + "/data/bodega");
+const apiLotes = new ApiService(Url + "/data/empaque");
+const apiEmpleados = new ApiService(Url + "/data/empleados");
+
 const alerts = new AlertManager();
 
 const token = document
@@ -269,7 +270,7 @@ function obtenerCajas() {
             });
         }
     });
-    
+
     const lotesUnico = lotes.filter((valor, indice, self) => {
         return self.indexOf(valor) === indice;
     });
@@ -281,7 +282,7 @@ function obtenerCajas() {
     Swal.fire({
         title: "¡Procesando Información!",
         html: "Terminando en <b></b> milliseconds.",
-        timer: 1500,
+        timer: 1000,
         timerProgressBar: true,
         didOpen: () => {
             Swal.showLoading();
@@ -364,7 +365,7 @@ function fillDatalist(datalist, data) {
 function handleInput(datalist, inputId, idFieldId) {
     document.getElementById(inputId).addEventListener("input", (e) => {
         const selectedOption = datalist.querySelector(
-            `option[value="${e.target.value}"]`
+            `option[value="${e.target.value}"]`,
         );
         if (selectedOption) {
             document.getElementById(idFieldId).value =
@@ -374,42 +375,54 @@ function handleInput(datalist, inputId, idFieldId) {
 }
 
 async function enviarFormulario() {
-    const camposObligatorios = ["fecha", "responsablenombre", "responsableid"];
-    if (!validarCamposForm(camposObligatorios)) {
+    try {
+
+        // Verificar que dataCaja tenga datos
+        if (!dataCaja || dataCaja.length === 0) {
+            Swal.fire({
+                title: "Error",
+                text: "No hay datos de cajas para enviar",
+                icon: "error",
+            });
+            return;
+        }
+
+        // Verificar tipos válidos
+        const tiposValidos = ["A", "B", "C", "AF", "BH", "XL", "CIL", "P"];
+        const tiposInvalidos = dataCaja.filter(
+            (caja) => !tiposValidos.includes(caja.tipo?.toUpperCase()),
+        );
+
+        if (tiposInvalidos.length > 0) {
+            Swal.fire({
+                title: "Error",
+                text: `Tipos no válidos: ${tiposInvalidos.map((c) => c.tipo).join(", ")}`,
+                icon: "error",
+            });
+            return;
+        }
+
+        // Construir datos
+        const datos = {
+            fecha_verificacion: document.getElementById("fecha").value,
+            id_responsable: document.getElementById("responsableid").value,
+            observaciones:
+                document.getElementById("Observaciones").value ||
+                "No hay Observaciones",
+            cajas: dataCaja,
+        };
+
+        // Mostrar loading
         Swal.fire({
-            title: "¡Error!",
-            text: "Por favor, llene los campos Obligatorios antes de guardar el registro.",
-            icon: "error",
-            showConfirmButton: true,
-            allowEscapeKey: false,
+            title: "Procesando...",
+            text: "Actualizando bodega",
             allowOutsideClick: false,
+            didOpen: () => {
+                Swal.showLoading();
+            },
         });
-        return;
-    }
 
-    if (dataCaja.length <= 0) {
-        Swal.fire({
-            title: "¡Error!",
-            text: "No hay datos de Verificación de Cajas de Empaque.",
-            icon: "error",
-            showConfirmButton: true,
-            allowEscapeKey: false,
-            allowOutsideClick: false,
-        });
-        return;
-    }
-    const datos = {
-        fecha_verificacion: document.getElementById("fecha").value,
-        id_responsable: document.getElementById("responsableid").value,
-        observaciones:
-            document.getElementById("Observaciones").value ||
-            "No hay Observaciones",
-        cajas: dataCaja,
-    };
-
-    console.log(datos);
-
-    /*  try {
+        // Enviar
         const respuesta = await apiInventario.put("/update", datos, {
             headers: {
                 "Content-Type": "application/json",
@@ -417,35 +430,33 @@ async function enviarFormulario() {
             },
         });
 
-        if (!respuesta.success) {
-            alerts.show(respuesta);
+        Swal.close();
 
-            setTimeout(() => {
-                window.location.replace("/tablet/home");
-            }, 3000);
-        } else {
-            alerts.show(respuesta);
-
-            setTimeout(() => {
+        if (respuesta.success) {
+            Swal.fire({
+                title: "¡Éxito!",
+                text: respuesta.message || "Bodega actualizada correctamente",
+                icon: "success",
+            }).then(() => {
                 window.location.reload();
-            }, 3000);
+            });
+        } else {
+            Swal.fire({
+                title: "Error",
+                text: respuesta.message || "Error al actualizar",
+                icon: "error",
+            });
         }
     } catch (error) {
+        console.error("❌ Error en enviarFormulario:", error);
+
         Swal.fire({
-            title: "Error",
-            text: error.message,
+            title: "Error de conexión",
+            text: error.message || "No se pudo conectar con el servidor",
             icon: "error",
-            showConfirmButton: false,
-            allowEscapeKey: false,
-            allowOutsideClick: false,
         });
-
-        setTimeout(() => {
-            window.location.replace("/tablet/home");
-        }, 3000);
-    } */
+    }
 }
-
 document.getElementById("btnGuardar").addEventListener("click", function (e) {
     e.preventDefault();
     Swal.fire({

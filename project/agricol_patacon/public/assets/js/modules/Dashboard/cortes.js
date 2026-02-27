@@ -1,9 +1,10 @@
-import { AlertManager, ApiService } from "../../helpers/ApiUseManager.js";
+import { AlertManager, ApiService, Url } from "../../helpers/ApiUseManager.js";
 import notificationManager from "../../helpers/NotificacionesManger.js";
-
 import eventManager from "../../helpers/EventsManager.js";
-const API_CORTES = new ApiService("http://localhost:3105/data/corte");
-const API_PRODUCCION = new ApiService("http://localhost:3105/data/produccion");
+
+const API_CORTES = new ApiService(Url + "/data/corte");
+const API_PRODUCCION = new ApiService(Url + "/data/produccion");
+
 const alerts = new AlertManager();
 const token = document
     .querySelector('meta[name="jwt"]')
@@ -131,7 +132,25 @@ async function cargarCortes(id) {
         $("#carousel-item1").removeClass("active");
         $("#carousel-item2").addClass("active");
 
-        $(`#tablaCortes`).DataTable({
+        // DESTRUIR TABLA DE FORMA SEGURA
+        if ($.fn.DataTable.isDataTable("#tablaCortes")) {
+            const table = $("#tablaCortes").DataTable();
+            try {
+                table.clear().destroy();
+            } catch (error) {
+                // Si falla, limpiar manualmente
+                $("#tablaCortes").empty();
+                $("#tablaCortes").removeAttr("data-page");
+                $("#tablaCortes").removeAttr("data-filter");
+                $("#tablaCortes").removeAttr("data-sort");
+            }
+        }
+
+        // Limpiar el contenido de la tabla
+        $("#tablaCortes tbody").empty();
+
+        // Crear nueva tabla
+        const dataTable = $(`#tablaCortes`).DataTable({
             data: cortes,
             searching: true,
             serverSide: false,
@@ -139,6 +158,9 @@ async function cargarCortes(id) {
             orderCellsTop: true,
             deferRender: true,
             dom: "Bfrtip",
+            destroy: true,
+            retrieve: false,
+            autoWidth: false,
             columns: [
                 { data: "Fecha" },
                 { data: "Materia" },
@@ -148,49 +170,44 @@ async function cargarCortes(id) {
                 {
                     data: null,
                     render: (data, type, row) => `
-                  
-
- <div class="btn-group dropend">
-  <button type="button" class="btn btn-light  btn-sm dropdown-toggle text-center d-flex align-items-center justify-content-center"
-  data-bs-toggle="dropdown" aria-expanded="false" style="background-color: #fffefdef;  width: 42px; height: 42px; border-radius: 50%;">
-    <i class="fas fa-ellipsis-v"></i>
-  </button>
-  <ul class="dropdown-menu shadow-sm border-0 rounded-3 suggestions">
-  <li>
-      <a class="dropdown-item d-flex align-items-center info-btn" data-id="${
-          row.id
-      }" data-fecha="${row.Fecha}" data-rechazo="${
-                        row.Rechazo ? row.Rechazo : ""
-                    }">
-        <i class="fas fa-circle-info text-info me-2"></i> Información
-        </a>
-      </li>
-       <li>
-         <a class="dropdown-item d-flex align-items-center pdf-btn" data-id="${
-             row.id
-         }">
-           <i class="fas fa-file-export text-danger me-2"></i> Exportar
-         </a>
-      </li>
-  </ul>
-</div>
-                `,
+                    <div class="btn-group dropend">
+                        <button type="button" class="btn btn-light btn-sm dropdown-toggle text-center d-flex align-items-center justify-content-center"
+                        data-bs-toggle="dropdown" aria-expanded="false" style="background-color: #fffefdef; width: 42px; height: 42px; border-radius: 50%;">
+                            <i class="fas fa-ellipsis-v"></i>
+                        </button>
+                        <ul class="dropdown-menu shadow-sm border-0 rounded-3 suggestions">
+                            <li>
+                                <a class="dropdown-item d-flex align-items-center info-btn" data-id="${row.id}" data-fecha="${row.Fecha}" data-rechazo="${row.Rechazo ? row.Rechazo : ""}">
+                                    <i class="fas fa-circle-info text-info me-2"></i> Información
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item d-flex align-items-center pdf-btn" data-id="${row.id}">
+                                    <i class="fas fa-file-export text-danger me-2"></i> Exportar
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
+                    `,
+                    orderable: false,
+                    searchable: false,
                 },
             ],
             initComplete: function () {
+                // Configurar listeners solo una vez
                 const api = this.api();
                 const $header = $(api.table().header());
-                // Recorremos columnas y conectamos la 2da fila (filtros)
+
                 api.columns().every(function (colIdx) {
                     const column = this;
                     const $thFilter = $header.find("tr:eq(1) th").eq(colIdx);
 
-                    // INPUT -> búsqueda libre (contains)
                     const $input = $thFilter.find("input");
                     if ($input.length) {
+                        // Usar namespace para los eventos
                         $input
-                            .off("keyup change")
-                            .on("keyup change", function () {
+                            .off("keyup.dt change.dt")
+                            .on("keyup.dt change.dt", function () {
                                 const val = this.value;
                                 if (column.search() !== val) {
                                     column.search(val).draw();
@@ -198,26 +215,23 @@ async function cargarCortes(id) {
                             });
                     }
 
-                    // SELECT -> opciones únicas + match exacto
                     const $select = $thFilter.find("select");
                     if ($select.length) {
-                        // llenar opciones únicas ordenadas
                         const uniques = column.data().unique().sort();
-                        // limpiar por si reinicializas
                         $select
                             .empty()
                             .append('<option value="">Todos</option>');
                         uniques.each(function (d) {
                             if (d !== null && d !== undefined && d !== "") {
                                 $select.append(
-                                    `<option value="${d}">${d}</option>`
+                                    `<option value="${d}">${d}</option>`,
                                 );
                             }
                         });
 
-                        $select.off("change").on("change", function () {
+                        $select.off("change.dt").on("change.dt", function () {
                             const val = $.fn.dataTable.util.escapeRegex(
-                                $(this).val()
+                                $(this).val(),
                             );
                             column
                                 .search(val ? `^${val}$` : "", true, false)
@@ -225,6 +239,9 @@ async function cargarCortes(id) {
                         });
                     }
                 });
+
+                // Configurar listeners de botones
+                setupTableListeners("tablaCortes");
             },
             drawCallback: function () {
                 let api = this.api();
@@ -241,8 +258,6 @@ async function cargarCortes(id) {
                 emptyTable: "No hay datos disponibles en la tabla",
             },
         });
-
-        setupTableListeners("tablaCortes");
     } catch (error) {
         console.error(error);
         Swal.fire({
@@ -255,21 +270,229 @@ async function cargarCortes(id) {
     }
 }
 
+// Modificar setupTableListeners para evitar duplicación
+const tableListeners = new Map();
+
 function setupTableListeners(tableId) {
     const table = document.getElementById(tableId);
     if (!table) return;
 
-    eventManager.delegate(table, "click", ".info-btn", async function (e) {
-        const id = this.dataset.id;
-        console.log(id);
-        await infoCorte(id);
+    // Remover listeners anteriores de esta tabla
+    if (tableListeners.has(tableId)) {
+        const listenerIds = tableListeners.get(tableId);
+        listenerIds.forEach((id) => {
+            if (id) eventManager.remove(id);
+        });
+        tableListeners.delete(tableId);
+    }
+
+    // Agregar nuevos listeners
+    const listenerIds = [
+        eventManager.delegate(table, "click", ".info-btn", async function (e) {
+            const id = this.dataset.id;
+            await infoCorte(id);
+        }),
+        eventManager.delegate(table, "click", ".pdf-btn", async function (e) {
+            const id = this.dataset.id;
+            await generarPDF(id);
+        }),
+    ];
+
+    // Guardar IDs para limpiar después
+    tableListeners.set(tableId, listenerIds);
+}
+
+// Modificar cargarInfoProveedores para manejar DataTables correctamente
+async function cargarInfoProveedores(id) {
+    try {
+        limpiarTable();
+
+        const response = await API_CORTES.get(`/obtener-detalle-id/${id}`, {
+            headers: {
+                Authorization: "Bearer " + token,
+            },
+        });
+
+        if (!response.success) {
+            alerts.show(response);
+            throw new Error(
+                "Error al Obtener la información del Registro de Corte.",
+            );
+        }
+
+        const { detalles, cortesProveedor, registro } = response.data;
+
+        elementsCortes.inputFecha.value = registro.fecha || "";
+        elementsCortes.inputRechazoInfo.value = `${registro.rechazo || 0} Kg`;
+
+        if (elementsCortes.btnPDF) {
+            elementsCortes.btnPDF.setAttribute("data-id", `${id}`);
+        }
+
+        // TABLA 1: Información de corte
+        if ($.fn.DataTable.isDataTable("#tablaInfoCorte")) {
+            $("#tablaInfoCorte").DataTable().clear().destroy();
+        }
+
+        $("#tablaInfoCorte").DataTable({
+            data: detalles,
+            searching: false,
+            destroy: true,
+            retrieve: false,
+            autoWidth: false,
+            paging: detalles.length > 20,
+            columns: [
+                { data: "Proveedor" },
+                { data: "Fecha" },
+                { data: "Lote" },
+                { data: "Materia" },
+                { data: "Rechazo" },
+                { data: "Rendimiento" },
+            ],
+            drawCallback: function () {
+                var api = this.api();
+                var numRows = api.rows({ page: "current" }).count();
+                if (numRows <= 20) {
+                    $(api.table().container())
+                        .find(".dataTables_paginate")
+                        .hide();
+                } else {
+                    $(api.table().container())
+                        .find(".dataTables_paginate")
+                        .show();
+                }
+            },
+            dom: "Bfrtip",
+            responsive: true,
+            language: {
+                url: "https://cdn.datatables.net/plug-ins/1.13.5/i18n/es-ES.json",
+            },
+        });
+
+        // TABLA 2: Cortes por proveedor
+        if ($.fn.DataTable.isDataTable("#tablaCortesProveedor")) {
+            $("#tablaCortesProveedor").DataTable().clear().destroy();
+        }
+
+        $("#tablaCortesProveedor").DataTable({
+            data: cortesProveedor,
+            searching: false,
+            destroy: true,
+            retrieve: false,
+            autoWidth: false,
+            paging: cortesProveedor.length > 20,
+            columns: [
+                { data: "Proveedor" },
+                { data: "Lote" },
+                { data: "Tipo" },
+                { data: "Cantidad" },
+            ],
+            drawCallback: function () {
+                var api = this.api();
+                var numRows = api.rows({ page: "current" }).count();
+                if (numRows <= 20) {
+                    $(api.table().container())
+                        .find(".dataTables_paginate")
+                        .hide();
+                } else {
+                    $(api.table().container())
+                        .find(".dataTables_paginate")
+                        .show();
+                }
+            },
+            dom: "Bfrtip",
+            responsive: true,
+            language: {
+                url: "https://cdn.datatables.net/plug-ins/1.13.5/i18n/es-ES.json",
+            },
+        });
+
+        // Mostrar modal después de crear las tablas
+        setTimeout(() => {
+            $("#ModalInfoCorte").modal("show");
+        }, 100);
+    } catch (error) {
+        console.error("Error en cargarInfoProveedores:", error);
+        Swal.fire({
+            icon: "error",
+            title: "Error",
+            text: "No se pudo cargar la información del corte.",
+            showConfirmButton: false,
+            timer: 2000,
+        });
+    }
+}
+
+// Modificar limpiarTable
+const limpiarTable = () => {
+    // Limpiar tablas DataTables si existen
+    const tables = ["#tablaInfoCorte", "#tablaCortesProveedor"];
+    tables.forEach((tableId) => {
+        if ($.fn.DataTable.isDataTable(tableId)) {
+            try {
+                $(tableId).DataTable().clear().destroy();
+            } catch (error) {
+                console.warn(`Error al limpiar tabla ${tableId}:`, error);
+            }
+        }
+        $(tableId + " tbody").empty();
     });
 
-    eventManager.delegate(table, "click", ".pdf-btn", async function (e) {
-        const id = this.dataset.id;
-        await generarPDF(id);
+    // Limpiar inputs
+    elementsCortes.inputFecha.value = "";
+    elementsCortes.inputRechazoInfo.value = "";
+};
+
+// Modificar cleanupDataTables
+function cleanupDataTables() {
+    const tables = ["#tablaInfoCorte", "#tablaCortes", "#tablaCortesProveedor"];
+
+    tables.forEach((tableId) => {
+        if ($.fn.DataTable.isDataTable(tableId)) {
+            try {
+                const table = $(tableId).DataTable();
+                // Limpiar datos primero
+                table.clear();
+                // Destruir instancia
+                table.destroy();
+                // Limpiar HTML
+                $(tableId).empty();
+                // Remover clases de DataTables
+                $(tableId).removeClass("dataTable");
+            } catch (error) {
+                console.warn(`Error al limpiar ${tableId}:`, error);
+                // Limpieza forzada
+                $(tableId).empty();
+                $(tableId).removeAttr("style");
+            }
+        }
     });
+
+    // Limpiar listeners de tablas
+    tableListeners.clear();
 }
+
+// Modificar cleanup para incluir limpieza de tablas
+export function cleanup() {
+    // Remover listeners específicos
+    Object.values(listenerIds).forEach((id) => {
+        if (id !== null) {
+            eventManager.remove(id);
+        }
+    });
+
+    // Limpiar listeners de tablas
+    tableListeners.forEach((listeners, tableId) => {
+        listeners.forEach((id) => {
+            if (id) eventManager.remove(id);
+        });
+    });
+    tableListeners.clear();
+
+    // Limpiar DataTables
+    cleanupDataTables();
+}
+
 async function infoCorte(id) {
     try {
         limpiarTable();
@@ -284,122 +507,6 @@ async function infoCorte(id) {
             timer: 1800,
         });
     }
-}
-
-async function cargarInfoProveedores(id) {
-    try {
-        const response = await API_CORTES.get(`/obtener-detalle-id/${id}`, {
-            headers: {
-                Authorization: "Bearer " + token,
-            },
-        });
-
-        if (!response.success) {
-            alerts.show(response);
-            throw new Error(
-                "Error al Obtener la información del Registro de Corte."
-            );
-        }
-
-        const { detalles, cortesProveedor } = response.data;
-
-        let fecha = document
-            .querySelector(`[data-id="${id}"]`)
-            .getAttribute("data-fecha");
-
-        let rechazo = document
-            .querySelector(`[data-id="${id}"]`)
-            .getAttribute("data-rechazo");
-
-        elementsCortes.inputFecha.value = fecha;
-        elementsCortes.inputRechazoInfo.value = `${rechazo} Kg`;
-        elementsCortes.btnPDF.setAttribute("data-id", `${id}`);
-
-        $("#tablaInfoCorte").DataTable({
-            data: detalles,
-            searching: false,
-            destroy: true,
-            columns: [
-                { data: "Proveedor" },
-                { data: "Fecha" },
-                { data: "Materia" },
-                { data: "Rechazo" },
-                { data: "Rendimiento" },
-            ],
-            drawCallback: function () {
-                var api = this.api();
-                var numColumnas = api.columns().count(); // Cantidad de columnas visibles
-                if (numColumnas <= 20) {
-                    $(".dataTables_paginate").hide(); // Oculta la paginación si hay menos de o igual columnas específicas
-                } else {
-                    $(".dataTables_paginate").show(); // La muestra si supera ese número
-                }
-            },
-            dom: "Bfrtip",
-            responsive: true,
-            language: {
-                url: "https://cdn.datatables.net/plug-ins/1.13.5/i18n/es-ES.json",
-            },
-            columnDefs: [],
-        });
-
-        $("#tablaCortesProveedor").DataTable({
-            data: cortesProveedor,
-            searching: false,
-            destroy: true,
-            columns: [
-                { data: "Proveedor" },
-                { data: "Tipo" },
-                { data: "Cantidad" },
-            ],
-            drawCallback: function () {
-                var api = this.api();
-                var numColumnas = api.columns().count(); // Cantidad de columnas visibles
-                if (numColumnas <= 20) {
-                    $(".dataTables_paginate").hide(); // Oculta la paginación si hay menos de o igual columnas específicas
-                } else {
-                    $(".dataTables_paginate").show(); // La muestra si supera ese número
-                }
-            },
-            dom: "Bfrtip",
-            responsive: true,
-            language: {
-                url: "https://cdn.datatables.net/plug-ins/1.13.5/i18n/es-ES.json",
-            },
-            columnDefs: [],
-        });
-        $("#ModalInfoCorte").modal("show");
-    } catch (error) {
-        console.error(error);
-    }
-}
-
-const limpiarTable = () => {
-    $("#tablaInfoCorte > tbody").empty();
-    elementsCortes.inputFecha.value = "";
-    elementsCortes.inputRechazoInfo.value = 0;
-};
-
-export function cleanup() {
-    // Remover listeners específicos
-    Object.values(listenerIds).forEach((id) => {
-        if (id !== null) {
-            eventManager.remove(id);
-        }
-    });
-    // Limpiar listeners de DataTables
-    cleanupDataTables();
-}
-
-function cleanupDataTables() {
-    ["#tablaInfoCorte", "#tablaCortes", "tablaCortesProveedor"].forEach(
-        (tableId) => {
-            if ($.fn.DataTable.isDataTable(tableId)) {
-                $(tableId).DataTable().destroy();
-                $(tableId).empty();
-            }
-        }
-    );
 }
 
 export function reloadEventListeners() {

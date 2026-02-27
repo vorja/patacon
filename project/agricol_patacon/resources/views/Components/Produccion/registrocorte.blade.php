@@ -32,13 +32,14 @@
             @csrf
             <div class="card border-0 card-body">
                 <div class="row mt-4">
-                    <div class="mb-3 col-3">
+                    <div class="mb-3 col-4">
                         <h4 class="text-titles"><i class="fa-solid  fa-users-line me-2"
                                 style="color: #ec6704"></i>Responsable
                         </h4>
                         <div class="border-bottom mb-3"></div>
-                        <input type="" class="form-control form-control-lg rounded shadow-sm" id="responsablenombre" name="responsable"
-                            list="empeladolist" placeholder="Operario Encargado" required autocomplete="off">
+                        <input type="" class="form-control form-control-lg rounded shadow-sm" id="responsablenombre"
+                            name="responsable" list="empeladolist" placeholder="Operario Encargado" required
+                            autocomplete="off">
                         <input type="hidden" id="responsableid" name="">
                         <datalist id="empeladolist"></datalist>
                         <div class="invalid-feedback">
@@ -46,16 +47,42 @@
                         </div>
 
                     </div>
-                    <div class="mb-3 col-3">
-                        <h4 class="text-titles"><i class="fa-solid fa-ban me-2" style="color: #ec6704"></i>Total Rechazo
-                        </h4>
+
+
+                    <div class="mb-3 col-4">
+                        <h4 class="text-titles"><i class="fa-solid fa-clock me-2" style="color: #ec6704"></i>Hora inicio
+                            corte</h4>
                         <div class="border-bottom mb-3"></div>
-                        <input type="number" min="0" step="0.1" class="form-control form-control-lg rounded shadow-sm numeric"
-                            id="rechazo" name="rechazo" placeholder="Cantidad Kg" required readonly>
+                        <input type="time" class="form-control form-control-lg rounded shadow-sm " id="inicio_corte"
+                            name="inicio_corte" required>
                         <div class="invalid-feedback">
                             Este campo es obligatorio.
                         </div>
                     </div>
+                    <div class="mb-3 col-4">
+                        <h4 class="text-titles"><i class="fa-solid fa-clock me-2" style="color: #ec6704"></i>Hora final
+                            corte</h4>
+                        <div class="border-bottom mb-3"></div>
+                        <input type="time" class="form-control form-control-lg rounded shadow-sm " id="fin_corte"
+                            name="fin_corte" required>
+                        <div class="invalid-feedback">
+                            Este campo es obligatorio.
+                        </div>
+                    </div>
+
+
+                    <div class="mb-3 col-3">
+                        <h4 class="text-titles"><i class="fa-solid fa-ban me-2" style="color: #ec6704"></i>Total Rechazo
+                        </h4>
+                        <div class="border-bottom mb-3"></div>
+                        <input type="number" min="0" step="0.1"
+                            class="form-control form-control-lg rounded shadow-sm numeric" id="rechazo" name="rechazo"
+                            placeholder="Cantidad Kg" required readonly>
+                        <div class="invalid-feedback">
+                            Este campo es obligatorio.
+                        </div>
+                    </div>
+
                     <div class="mb-3 col-3 p-3">
                         <div class="border-bottom mb-3  mt-4"></div>
                         <button class="btn btn-md fs-5 text-start shadow-sm text-white w-100 text-center" type="button"
@@ -98,12 +125,14 @@
                 </div>
             </div>
 
-            <div class="col-3 p-3 mt-3">
-                <button type="button" class="btn btn-lg fs-5 text-white" data-bs-toggle="modal"
-                    data-bs-target="#exampleModal" style="background-color: #24243c">
-                    <i class="fa-solid fa-clipboard fs-4 me-2"></i>
-                    Cortes
-                </button>
+            <div class="row">
+                <div class="col-11 p-3 mt-3">
+                    <button type="button" class="btn btn-lg fs-5 text-white" data-bs-toggle="modal"
+                        data-bs-target="#exampleModal" style="background-color: #24243c">
+                        <i class="fa-solid fa-clipboard fs-4 me-2"></i>
+                        Cortes
+                    </button>
+                </div>
             </div>
 
             <table class="table table-hover table-striped custom-table info-card tabla-personalized" id="InfoCorte">
@@ -203,7 +232,8 @@
                             </h5>
                             <div class="row justify-content-between ">
                                 <div class="col-3">
-                                    <input class="form-control form-control-lg  rounded shadow-sm fs-5 text-center fw-semibold text-center"
+                                    <input
+                                        class="form-control form-control-lg  rounded shadow-sm fs-5 text-center fw-semibold text-center"
                                         type="number" min="0" style="background-color:#ffffff; color:#070707;" disabled
                                         placeholder="Rechazo Kg" id="rechazoProveedor" autocomplete="off">
                                 </div>
@@ -220,7 +250,7 @@
             </div>
         </div>
     </div>
-</div>  
+</div>
 <script type="module" src="{{ asset('assets/js/modules/Produccion/corte.js') }}"></script>
 
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.js"></script>

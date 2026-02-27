@@ -12,24 +12,19 @@
 
     <div class="container-fluid p-2 mt-4">
 
-        <div class="row d-flex justify-content-end">
-            <div class="col-4">
-                <input type="month" name="filtro" id="filtro" class="form-control form-control-sm rounded-3 text-center shadow-sm">
-            </div>
-        </div>
         <div class="row d-flex justify-content-between mt-3">
 
             <div class="card-dashboard col mx-2 p-3 rounded-3 shadow" style="border: 1px solid #fff">
                 <div class="card-title-proyeccion">Contenedores</div>
                 <div class="card-value-proyeccion" style="color:#74820c" id="contenedoresTotal">-</div>
-                <div class="card-subtitle-proyeccion" id="ano">AÑO 2025</div>
+                <div class="card-subtitle-proyeccion" id="ano1"></div>
             </div>
 
             <div class="card-dashboard col mx-2 p-3 rounded-3 shadow" style="border: 1px solid #fff">
                 <div class="container-fluid">
                     <div class="card-title-proyeccion">Producciones</div>
                     <div class="card-value-proyeccion" style="color:#6c780d" id="produccionesTotal">-</div>
-                    <div class="card-subtitle-proyeccion" id="ano">AÑO 2025</div>
+                    <div class="card-subtitle-proyeccion" id="ano2"></div>
                 </div>
             </div>
 
@@ -37,23 +32,10 @@
                 <div class="container-fluid">
                     <div class="card-title-proyeccion">Cajas Producidas</div>
                     <div class="card-value-proyeccion" style="color:#6c780d" id="cajasTotal">-</div>
-                    <div class="card-subtitle-proyeccion" id="ano">AÑO 2025</div>
+                    <div class="card-subtitle-proyeccion" id="ano3"></div>
                 </div>
             </div>
 
-            <div class="card-dashboard col mx-2 p-3 rounded-3 shadow" style="border: 1px solid #fff">
-                <div class="container-fluid">
-                    <div class="row mb-4 mt-3">
-                        <div class="col">TITLE</div>
-                        <div class="col text-end"> <i class="fa-solid fa-circle-info fs-3 text-info"></i></div>
-                    </div>
-                    <div class="row mt-3">
-                        <div class="col-12 jjustify-content p-2">
-                            <h3>$7500 </h3>
-                        </div>
-                    </div>
-                </div>
-            </div>
         </div>
 
         <div class="row d-flex justify-content-center mt-4">

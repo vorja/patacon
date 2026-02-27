@@ -1,16 +1,18 @@
-import { AlertManager, ApiService } from "../../helpers/ApiUseManager.js";
+import { AlertManager, ApiService, Url } from "../../helpers/ApiUseManager.js";
 import eventManager from "../../helpers/EventsManager.js";
 import notificationManager from "../../helpers/NotificacionesManger.js";
 
-const API_INVENTARIO = new ApiService("http://localhost:3105/data/inventario");
-const API_PROVEEDORES = new ApiService(
-    "http://localhost:3105/data/proveedorInsumos"
-);
+const API_INVENTARIO = new ApiService(Url + "/data/inventario");
+const API_PROVEEDORES = new ApiService(Url + "/data/proveedorInsumos");
+
 const alerts = new AlertManager();
 
 const token = document
     .querySelector('meta[name="jwt"]')
     .getAttribute("content");
+
+// Variable para almacenar la instancia de DataTable
+let dataTableInstance = null;
 
 export async function init() {
     try {
@@ -42,7 +44,7 @@ function setupEventListeners() {
         listenerIds.btnAgregar = eventManager.add(
             elementsInventario.btnAgregar,
             "click",
-            handleAgregarClick
+            handleAgregarClick,
         );
     }
 
@@ -50,7 +52,7 @@ function setupEventListeners() {
         listenerIds.formInventario = eventManager.add(
             elementsInventario.formInventario,
             "submit",
-            formItem
+            formItem,
         );
     }
 
@@ -94,126 +96,176 @@ async function cargarInventario() {
 
         const { items, conteoItems } = response.data;
         asignarConteo(conteoItems);
-        const tabla = $("#tableInventario").DataTable({
-            data: items,
-            processing: true,
-            serverSide: false,
-            responsive: true,
-            orderCellsTop: true,
-            deferRender: true,
-            dom: "Bfrtip",
-            columns: [
-                { data: "Proveedor" },
-                { data: "Medida" },
-                { data: "Area" },
-                { data: "Nombre" },
-                {
-                    data: "Stock",
-                    render: function (data, type, row) {
-                        if (type !== "display") return data;
-                        const val = parseInt(data ?? 0, 10);
-                        if (val <= 1) {
-                            return `<span class="badge bg-danger rounded-pill fw-bold">${val}</span>`;
-                        }
-                        return `<span class="badge bg-success rounded-pill fw-bold">${val}</span>`;
+
+        // Verificar si ya existe una instancia y destruirla
+        if ($.fn.DataTable.isDataTable("#tableInventario")) {
+            dataTableInstance.clear().rows.add(items).draw();
+        } else {
+            // Solo crear la tabla si no existe
+            // Primero, asegurarnos de que el HTML de la tabla está correcto
+            const tableElement = document.getElementById("tableInventario");
+            if (!tableElement.querySelector("thead")) {
+                // Recrear la estructura si se perdió
+                tableElement.innerHTML = `
+                    <thead>
+                        <tr>
+                            <th>Proveedor</th>
+                            <th>Medida</th>
+                            <th>Área</th>
+                            <th>Nombre</th>
+                            <th>Stock</th>
+                            <th>Acciones</th>
+                        </tr>
+                        <!-- Fila de filtros -->
+                        <tr>
+                            <th><input type="text" class="form-control form-control-sm" placeholder="Buscar..." /></th>
+                            <th>
+                                <select class="form-select form-select-sm">
+                                    <option value="">Todos</option>
+                                </select>
+                            </th>
+                            <th>
+                                <select class="form-select form-select-sm">
+                                    <option value="">Todos</option>
+                                </select>
+                            </th>
+                            <th><input type="text" class="form-control form-control-sm" placeholder="Buscar..." /></th>
+                            <th><input type="text" class="form-control form-control-sm" placeholder="Buscar..." /></th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                `;
+            }
+
+            // Crear la nueva instancia de DataTable
+            dataTableInstance = $("#tableInventario").DataTable({
+                data: items,
+                processing: true,
+                serverSide: false,
+                responsive: true,
+                orderCellsTop: true,
+                deferRender: true,
+                dom: "Bfrtip",
+                columns: [
+                    { data: "Proveedor" },
+                    { data: "Medida" },
+                    { data: "Area" },
+                    { data: "Nombre" },
+                    {
+                        data: "Stock",
+                        render: function (data, type, row) {
+                            if (type !== "display") return data;
+                            const val = parseInt(data ?? 0, 10);
+                            if (val <= 1) {
+                                return `<span class="badge bg-danger rounded-pill fw-bold">${val}</span>`;
+                            }
+                            return `<span class="badge bg-success rounded-pill fw-bold">${val}</span>`;
+                        },
                     },
+                    {
+                        data: null,
+                        render: (data, type, row) => `
+                           <div class="btn-group dropend">
+                              <button type="button" class="btn btn-light btn-sm dropdown-toggle d-flex align-items-center justify-content-center" style="width: 38px; height: 38px; border-radius: 50%;" data-bs-toggle="dropdown" aria-expanded="false">
+                                <i class="fas fa-ellipsis-v"></i>
+                              </button>
+                              <ul class="dropdown-menu shadow-sm border-0 rounded-3">
+                                <li>
+                                  <a class="dropdown-item d-flex align-items-center info-btn" data-id="${row.id}">
+                                    <i class="fas fa-circle-info text-info me-2"></i> Información
+                                  </a>
+                                </li>
+                                <li>
+                                  <a class="dropdown-item d-flex align-items-center edit-btn" data-id="${row.id}">
+                                    <i class="fas fa-edit text-warning me-2"></i> Editar
+                                  </a>
+                                </li>
+                                <li>
+                                  <a class="dropdown-item d-flex align-items-center delete-btn" data-id="${row.id}">
+                                    <i class="fas fa-trash-alt text-danger me-2"></i> Eliminar
+                                  </a>
+                                </li>
+                              </ul>
+                            </div>
+                        `,
+                        orderable: false,
+                        searchable: false,
+                    },
+                ],
+                drawCallback: function () {
+                    var api = this.api();
+                    let numRegistros = api.rows({ filter: "applied" }).count();
+                    let tableWrapper = $(api.table().container());
+                    if (numRegistros <= 11) {
+                        tableWrapper.find(".dataTables_paginate").hide();
+                    } else {
+                        tableWrapper.find(".dataTables_paginate").show();
+                    }
+
+                    // Reconfigurar listeners después de cada draw
+                    setupTableListeners("tableInventario");
                 },
-
-                {
-                    data: null,
-                    render: (data, type, row) => `
-                       <div class="btn-group dropend">
-  <button type="button" class="btn btn-light btn-sm dropdown-toggle d-flex align-items-center justify-content-center" style="width: 38px; height: 38px; border-radius: 50%;" data-bs-toggle="dropdown" aria-expanded="false">
-    <i class="fas fa-ellipsis-v"></i>
-  </button>
-  <ul class="dropdown-menu shadow-sm border-0 rounded-3">
-  <li>
-      <a class="dropdown-item d-flex align-items-center info-btn" data-id="${row.id}">
-        <i class="fas fa-circle-info text-info me-2"></i> Información
-      </a>
-    </li>
-    <li>
-      <a class="dropdown-item d-flex align-items-center edit-btn" data-id="${row.id}">
-        <i class="fas fa-edit text-warning me-2"></i> Editar
-      </a>
-    </li>
-    <li>
-      <a class="dropdown-item d-flex align-items-center delete-btn" data-id="${row.id}">
-        <i class="fas fa-trash-alt text-danger me-2"></i> Eliminar
-      </a>
-    </li>
-  </ul>
-</div>
-`,
+                language: {
+                    url: "https://cdn.datatables.net/plug-ins/1.13.5/i18n/es-ES.json",
+                    emptyTable: "No hay datos disponibles en la tabla",
                 },
-            ],
-            drawCallback: function () {
-                var api = this.api();
-                let numRegistros = api.rows({ filter: "applied" }).count();
-                let tableWrapper = $(api.table().container());
-                if (numRegistros <= 15) {
-                    tableWrapper.find(".dataTables_paginate").hide();
-                } else {
-                    tableWrapper.find(".dataTables_paginate").show();
-                }
-            },
-            language: {
-                url: "https://cdn.datatables.net/plug-ins/1.13.5/i18n/es-ES.json",
-                emptyTable: "No hay datos disponibles en la tabla",
-            },
-            initComplete: function () {
-                const api = this.api();
-                const $header = $(api.table().header()); // <thead>
+                initComplete: function () {
+                    const api = this.api();
+                    const $header = $(api.table().header());
 
-                // Recorremos columnas y conectamos la 2da fila (filtros)
-                api.columns().every(function (colIdx) {
-                    const column = this;
-                    const $thFilter = $header.find("tr:eq(1) th").eq(colIdx);
+                    // Configurar filtros
+                    api.columns().every(function (colIdx) {
+                        const column = this;
+                        const $thFilter = $header
+                            .find("tr:eq(1) th")
+                            .eq(colIdx);
 
-                    // INPUT -> búsqueda libre (contains)
-                    const $input = $thFilter.find("input");
-                    if ($input.length) {
-                        $input
-                            .off("keyup change")
-                            .on("keyup change", function () {
-                                const val = this.value;
-                                if (column.search() !== val) {
-                                    column.search(val).draw();
+                        // INPUT -> búsqueda libre
+                        const $input = $thFilter.find("input");
+                        if ($input.length) {
+                            $input
+                                .off("keyup change")
+                                .on("keyup change", function () {
+                                    const val = this.value;
+                                    if (column.search() !== val) {
+                                        column.search(val).draw();
+                                    }
+                                });
+                        }
+
+                        // SELECT -> opciones únicas
+                        const $select = $thFilter.find("select");
+                        if ($select.length) {
+                            // Limpiar y llenar opciones únicas
+                            $select
+                                .empty()
+                                .append('<option value="">Todos</option>');
+
+                            const uniques = column.data().unique().sort();
+                            uniques.each(function (d) {
+                                if (d !== null && d !== undefined && d !== "") {
+                                    $select.append(
+                                        `<option value="${d}">${d}</option>`,
+                                    );
                                 }
                             });
-                    }
 
-                    // SELECT -> opciones únicas + match exacto
-                    const $select = $thFilter.find("select");
-                    if ($select.length) {
-                        // llenar opciones únicas ordenadas
-                        const uniques = column.data().unique().sort();
-                        // limpiar por si reinicializas
-                        $select
-                            .empty()
-                            .append('<option value="">Todos</option>');
-                        uniques.each(function (d) {
-                            if (d !== null && d !== undefined && d !== "") {
-                                $select.append(
-                                    `<option value="${d}">${d}</option>`
+                            $select.off("change").on("change", function () {
+                                const val = $.fn.dataTable.util.escapeRegex(
+                                    $(this).val(),
                                 );
-                            }
-                        });
+                                column
+                                    .search(val ? `^${val}$` : "", true, false)
+                                    .draw();
+                            });
+                        }
+                    });
 
-                        $select.off("change").on("change", function () {
-                            const val = $.fn.dataTable.util.escapeRegex(
-                                $(this).val()
-                            );
-                            column
-                                .search(val ? `^${val}$` : "", true, false)
-                                .draw();
-                        });
-                    }
-                });
-            },
-        });
-
-        setupTableListeners("tableInventario");
+                    setupTableListeners("tableInventario");
+                },
+            });
+        }
     } catch (error) {
         console.error(error);
         Swal.fire({
@@ -223,6 +275,21 @@ async function cargarInventario() {
             timer: 2000,
             showConfirmButton: false,
         });
+    }
+}
+
+// Modificar la función cleanupDataTables para ser más cuidadosa
+function cleanupDataTables() {
+    if (dataTableInstance) {
+        try {
+            // Solo destruir si realmente es necesario
+            if ($.fn.DataTable.isDataTable("#tableInventario")) {
+                dataTableInstance.destroy(true); // true para preservar el HTML
+            }
+        } catch (error) {
+            console.warn("Error al limpiar DataTable:", error);
+        }
+        dataTableInstance = null;
     }
 }
 
@@ -244,14 +311,6 @@ export function cleanup() {
     cleanupDataTables();
 }
 
-function cleanupDataTables() {
-    ["#tableInventario"].forEach((tableId) => {
-        if ($.fn.DataTable.isDataTable(tableId)) {
-            $(tableId).DataTable().destroy();
-            $(tableId).empty();
-        }
-    });
-}
 export function reloadEventListeners() {
     cleanup();
     setupEventListeners();
@@ -281,7 +340,7 @@ function sanitizarCampos(dataItem) {
 
     if (!regexCantidad.test(dataItem.stock)) {
         throw new Error(
-            "Solo se permiten datos numericos, Ingrese un valor valido."
+            "Solo se permiten datos numericos, Ingrese un valor valido.",
         );
     }
 
@@ -295,7 +354,7 @@ function sanitizarCampos(dataItem) {
 
     if (!regexMedida.test(dataItem.medida)) {
         throw new Error(
-            "La Medida no debe contener espacios o caracteres no permitidos."
+            "La Medida no debe contener espacios o caracteres no permitidos.",
         );
     }
     if (!regexMedida.test(dataItem.area)) {
@@ -318,7 +377,11 @@ async function formItem(e) {
     };
     try {
         const item = sanitizarCampos(datosItem);
-        const action = id ? actualizarItem(id, item) : guardarItem(item);
+        if (id) {
+            await actualizarItem(id, item);
+        } else {
+            await guardarItem(item);
+        }
     } catch (error) {
         console.error(error);
         Swal.fire({
@@ -333,7 +396,7 @@ async function formItem(e) {
 
 async function actualizarItem(id, item) {
     try {
-        const response = await API_INVENTARIO.put(`/crear/${id}`, item, {
+        const response = await API_INVENTARIO.put(`/editar/${id}`, item, {
             headers: {
                 "Content-Type": "application/json",
                 Authorization: "Bearer " + token,
@@ -401,12 +464,12 @@ async function abrirEditar(idItem) {
         alerts.show(response);
         return false;
     }
-    document.getElementById("id_item").value = dataRol.id;
-    document.querySelector("#nombre").value = dataRol.nombre;
-    document.querySelector("#stock").value = dataRol.stock;
-    document.querySelector("#medida").value = dataRol.medida;
-    document.querySelector("#area").value = dataRol.area;
-    document.querySelector("#proveedores").value = dataRol.id_proveedor;
+    document.getElementById("id_item").value = dataRol.item.id;
+    document.querySelector("#nombre").value = dataRol.item.nombre;
+    document.querySelector("#stock").value = dataRol.item.stock;
+    document.querySelector("#medida").value = dataRol.item.medida;
+    document.querySelector("#area").value = dataRol.item.area;
+    document.querySelector("#proveedores").value = dataRol.item.id_proveedor;
     $("#ModalInventario").modal("show");
 }
 
@@ -428,7 +491,7 @@ async function eliminarItem(id) {
                 },
             });
 
-            if (!response) {
+            if (!response.success) {
                 alerts.show(response);
                 return false;
             } else {
@@ -441,30 +504,45 @@ async function eliminarItem(id) {
 
 async function infoItem(id) {
     try {
-        /*  const response = await fetch(`/obtener-id/${id}`, {
-            headers: {
-                Authorization: "Bearer " + token,
-            },
+        // Obtener información del item
+        const response = await API_INVENTARIO.get(`/obtener-id/${id}`, {
+            headers: { Authorization: "Bearer " + token },
         });
-        const dataRol = await response.json();
-        const { data } = dataRol;
 
-        if (!response.ok) {
-            throw new Error("Error al obtener el la información del Item");
-        } */
-        /*     document.querySelector("#nombre_info").value = data.nombre;
-        document.querySelector("#nombre_info").value = data.nombre;
-        document.querySelector("#nombre_info").value = data.nombre;
-        document.querySelector("#nombre_info").value = data.nombre; */
-        /*  document.querySelector("#descripcion_info").value = data.descripcion; */
+        if (!response.success) {
+            alerts.show(response);
+            return;
+        }
 
+        const { item } = response.data;
+        const proveedorNombre = item.proveedor?.nombre || "No especificado";
+
+        // Crear tabla simple con la información
+        const infoHTML = `
+            <table class="table table-bordered table-sm">
+                <tr><th style="width: 40%">Nombre</th><td>${item.nombre}</td></tr>
+                <tr><th>Stock</th><td>${item.stock}</td></tr>
+                <tr><th>Medida</th><td>${item.medida}</td></tr>
+                <tr><th>Área</th><td>${item.area}</td></tr>
+                <tr><th>Proveedor</th><td>${proveedorNombre}</td></tr>
+                <tr><th>Estado</th><td>${item.estado === 1 ? "Activo" : "Inactivo"}</td></tr>
+            </table>
+        `;
+
+        // Actualizar contenido del modal
+        const modalBody = document.querySelector("#ModalInfoItem .modal-body");
+        if (modalBody) {
+            modalBody.innerHTML = infoHTML;
+        }
+
+        // Mostrar el modal
         $("#ModalInfoItem").modal("show");
     } catch (error) {
         console.error(error);
         Swal.fire({
             icon: "error",
             title: "Error",
-            text: error.message,
+            text: error.message || "No se pudo cargar la información",
             showConfirmButton: false,
             timer: 1800,
         });
@@ -477,6 +555,7 @@ const asignarConteo = (data) => {
     };
     cardItems.Items.textContent = data;
 };
+
 async function llenarProveedor() {
     const response = await API_PROVEEDORES.get(`/obtener`, {
         headers: {
@@ -489,6 +568,9 @@ async function llenarProveedor() {
     }
     const { proveedores } = response.data;
     let selectProveedores = document.querySelector("#proveedores");
+    // Limpiar opciones existentes
+    selectProveedores.innerHTML =
+        '<option value="">Seleccione un proveedor</option>';
     proveedores.forEach((prov) => {
         const option = document.createElement("option");
         option.value = prov.id;
@@ -496,6 +578,7 @@ async function llenarProveedor() {
         selectProveedores.appendChild(option);
     });
 }
+
 if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", init);
 } else {

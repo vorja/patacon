@@ -33,6 +33,7 @@ Route::middleware(['auth.sesion'])->group(function () {
     Route::post('/reporte-alistamiento', [PdfController::class, 'alistamientoPDF'])->name('reportes.alistamiento');
     Route::post('/reporte-fritura', [PdfController::class, 'frituraPDF'])->name('reportes.fritura');
     Route::post('/reporte-empaque', [PdfController::class, 'empaquePDF'])->name('reportes.empaque');
+    Route::post('/reporte-contenedor', [PdfController::class, 'contenedorPDF'])->name('reportes.contenedor');
 
     Route::prefix('/database')->middleware('role:Dashboard,Gerente,Productor,RRHH')->group(function () {
 

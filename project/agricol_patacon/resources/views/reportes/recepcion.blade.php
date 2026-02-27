@@ -15,13 +15,13 @@
             width: 100%;
             border: 1px solid #000;
             border-collapse: collapse;
-            margin-bottom: 8px;
+            margin-bottom: 12px;
             font-family: Arial, Helvetica, sans-serif;
         }
 
         .encabezado td {
-            border: 1px solid #000;
-            padding: 4px;
+            border: 2px solid #000;
+            padding: 8px;
             text-align: center;
         }
 
@@ -40,8 +40,8 @@
 
         .info td {
             border: 1px solid #000;
-            padding: 7px;
-            font-size: 12px
+            padding: 4px;
+            font-size: 7px
         }
 
         .tabla {
@@ -70,6 +70,28 @@
             margin-top: 40px;
             font-size: 16px;
             border-bottom: 1px solid #000;
+        }
+
+        /* Estilo para lista de defectos */
+        .defectos-lista {
+            text-align: left;
+            padding-left: 2px;
+            font-size: 7px;
+            line-height: 1.3;
+        }
+
+        .defectos-item {
+            margin-bottom: 3px;
+        }
+
+        .defecto-cantidad {
+            font-weight: bold;
+            color: #d9534f;
+        }
+
+        .sin-defectos {
+            font-style: italic;
+            color: #666;
         }
     </style>
 </head>
@@ -103,9 +125,10 @@
     <table class="tabla">
         <thead>
             <tr>
-                <th rowspan="2">Fecha</th>
+                <th rowspan="2">Produccion</th>
                 <th rowspan="2">Proveedor</th>
                 <th rowspan="2">Procesamiento</th>
+                <th rowspan="2">Brix</th>
                 <th rowspan="2">Producto</th>
                 <th rowspan="2">Cantidad</th>
                 <th rowspan="2">Lote</th>
@@ -129,13 +152,23 @@
                     <td>{{ $item['Fecha'] }}</td>
                     <td>{{ $item['Proveedor'] }}</td>
                     <td>{{ $item['Procedimiento'] }}</td>
+                    <td>{{ $item['Brix'] }}</td>
                     <td>{{ $item['Producto'] }}</td>
                     <td>{{ $item['Total'] }} kg</td>
                     <td>{{ $item['Lote'] }}</td>
                     <td>{{ $item['Color'] }}</td>
                     <td>{{ $item['Olor'] }}</td>
                     <td>{{ $item['Estado'] }}</td>
-                    <td>{{ $item['Defectos'] ?? 'No Hay Defectos' }}</td>
+                    <td class="defectos-lista">
+                        @if(isset($item['Detalles']) && count($item['Detalles']) > 0)
+                            @foreach($item['Detalles'] as $detalle)
+                                <div class="defectos-item">{{ $detalle['defecto'] }} <span class="defecto-cantidad">({{ $detalle['cantidad'] }}kg)</span>
+                                </div>
+                            @endforeach
+                        @else
+                            <div class="sin-defectos">No hay defectos</div>
+                        @endif
+                    </td>
                     <td>{{ $item['Cantidad'] }} kg</td>
                     <td>{{ $item['Cumple'] }}</td>
                     <td>{{ $item['Responsable'] }}</td>

@@ -1,75 +1,71 @@
 import { DataTypes } from "sequelize";
 import sequelize from "../config/database.mjs";
-import Produccion from "./produccion.mjs";
 
-const Bodega = sequelize.define(
-  "Bodega",
+const HistorialSobrantes = sequelize.define(
+  "HistorialSobrantes",
   {
     id: {
       type: DataTypes.INTEGER,
-      autoIncrement: true,
       primaryKey: true,
+      autoIncrement: true,
     },
-    fecha_produccion: {
+    fecha: {
       type: DataTypes.DATEONLY,
       allowNull: false,
     },
     orden: {
-      type: DataTypes.INTEGER,
-      allowNull: true,
-      references: {
-        model: Produccion,
-        key: "id",
-      },
+      type: DataTypes.STRING(50),
+      allowNull: false,
     },
     tipo_a: {
       type: DataTypes.INTEGER,
-      allowNull: false,
+      defaultValue: 0,
     },
     tipo_b: {
       type: DataTypes.INTEGER,
-      allowNull: false,
       defaultValue: 0,
     },
     tipo_c: {
       type: DataTypes.INTEGER,
-      allowNull: false,
       defaultValue: 0,
     },
     tipo_af: {
       type: DataTypes.INTEGER,
-      allowNull: false,
       defaultValue: 0,
     },
     tipo_bh: {
       type: DataTypes.INTEGER,
-      allowNull: false,
       defaultValue: 0,
     },
     tipo_xl: {
       type: DataTypes.INTEGER,
-      allowNull: false,
       defaultValue: 0,
     },
     tipo_cil: {
       type: DataTypes.INTEGER,
-      allowNull: false,
       defaultValue: 0,
     },
     tipo_p: {
       type: DataTypes.INTEGER,
-      allowNull: false,
       defaultValue: 0,
     },
+    fecha_registro: {
+      type: DataTypes.DATE,
+      defaultValue: DataTypes.NOW,
+    },
     estado: {
-      type: DataTypes.TINYINT,
+      type: DataTypes.INTEGER,
       allowNull: false,
-      defaultValue: 1,
+    },
+    orden_asignado: {
+      type: DataTypes.STRING(50),
+      allowNull: true,
     },
   },
   {
-    tableName: "bodega",
+    tableName: "historial_sobrantes",
     timestamps: false,
   },
 );
-export default Bodega;
+
+export default HistorialSobrantes;

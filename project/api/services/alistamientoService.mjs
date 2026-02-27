@@ -9,6 +9,70 @@ import RegistroRecepcionMateriaPrima from "../models/registroRecepcionMateriaPri
 import InventarioPlatanoMaduro from "../models/inventarioPlatanoMaduro.mjs";
 import sequelize from "../config/database.mjs";
 
+// En services/recepcionService.mjs - AÑADIR ESTA FUNCIÓN
+
+export const restarCantidad = async (id, data) => {
+  const transaction = await sequelize.transaction();
+
+  try {
+    const { cantidad_restar_kg, motivo, id_proveedor, fecha_resta } = data;
+
+    // Buscar el registro de recepción
+    const registro = await RegistroRecepcionMateriaPrima.findOne({
+      where: {
+        id: id,
+        id_proveedor: id_proveedor,
+      },
+      transaction
+    });
+
+    if (!registro) {
+      throw new Error("Registro de recepción no encontrado");
+    }
+
+    // Verificar que haya suficiente cantidad para restar
+    if (registro.materia_recep < cantidad_restar_kg) {
+      throw new Error(
+        `No hay suficiente materia prima. Disponible: ${registro.materia_recep} kg`,
+      );
+    }
+
+    // Calcular nueva cantidad
+    const nuevaMateriaRecep = registro.materia_recep - cantidad_restar_kg;
+    const nuevaCantidad = registro.cantidad - cantidad_restar_kg;
+
+    // Preparar observaciones
+    const observacionNueva = `${fecha_resta}: ${motivo} (${cantidad_restar_kg} kg)`;
+    const observacionesActualizadas = registro.observaciones 
+      ? `${registro.observaciones} | ${observacionNueva}`
+      : observacionNueva;
+
+    // Actualizar el registro
+    await registro.update({
+      materia_recep: nuevaMateriaRecep,
+      cantidad: nuevaCantidad,
+      observaciones: observacionesActualizadas,
+      estado_alistamiento: nuevaMateriaRecep === 0 ? 0 : registro.estado_alistamiento
+    }, { transaction });
+
+    await transaction.commit();
+
+    return {
+      success: true,
+      data: {
+        id: registro.id,
+        id_proveedor: registro.id_proveedor,
+        materia_actual: nuevaMateriaRecep,
+        cantidad_actual: nuevaCantidad
+      }
+    };
+
+  } catch (error) {
+    await transaction.rollback();
+    throw error;
+  }
+};
+
 export const create = async (data) => {
   const transaction = await sequelize.transaction();
 
@@ -17,7 +81,7 @@ export const create = async (data) => {
     // Insertamos el registro principal
     const controlAlistamiento = await ControlAlistamiento.create(
       registroAlismiento,
-      { transaction }
+      { transaction },
     );
 
     if (!controlAlistamiento || !controlAlistamiento.id) {
@@ -33,7 +97,7 @@ export const create = async (data) => {
       };
       const detalleInsertado = await AlistamientoHasProveedor.create(
         proveedoreConId,
-        { transaction }
+        { transaction },
       );
       proveedoresInsert.push(detalleInsertado);
     }
@@ -87,9 +151,9 @@ export const getAll = async (orden) => {
 
     const promedios = await ControlAlistamiento.findAll({
       attributes: [
-        [fn("AVG", col("maduro")), "maduro"],
-        [fn("AVG", col("rechazo")), "rechazo"],
-        [fn("AVG", col("total")), "total"],
+        [fn("SUM", col("maduro")), "maduro"],
+        [fn("SUM", col("rechazo")), "rechazo"],
+        [fn("SUM", col("total")), "total"],
       ],
       where: {
         orden: orden,
@@ -124,7 +188,7 @@ export const getAll = async (orden) => {
           ...alistamiento.get({ plain: true }),
           detalle,
         };
-      })
+      }),
     );
 
     const acumuladorCantidades = {};
@@ -156,7 +220,7 @@ export const getAll = async (orden) => {
         pelador: pelador.nombre ?? "",
         promedio: (sumaCantidades / contador).toFixed(1),
         total: sumaCantidades,
-      })
+      }),
     );
     return {
       alistamientos,
@@ -197,6 +261,7 @@ export const getById = async (id) => {
       cantidad: op.cantidad,
       rechazo: op.rechazo,
       maduro: op.maduro,
+      lote: op.lote_proveedor,
       nombre: op.proveedor?.nombre ?? "",
     }));
 
@@ -267,6 +332,7 @@ export const getInfoPdf = async (id) => {
       cantidad: op.cantidad,
       rechazo: op.rechazo,
       maduro: op.maduro,
+      lote: op.lote_proveedor,
       proveedor: op.proveedor?.nombre ?? "",
     }));
 
@@ -328,7 +394,7 @@ export const update = async (id, data) => {
 export const updateRecepcion = async (data) => {
   const actualizarRecepcion = await RegistroRecepcionMateriaPrima.update(
     { estado_alistamiento: 0 },
-    { where: { id: data } }
+    { where: { id: data } },
   );
   return actualizarRecepcion;
 };
@@ -355,7 +421,7 @@ export const updatePlano = async (proveedor, data) => {
       } else {
         await registro.increment("cantidad", { by: item.maduro });
       }
-    })
+    }),
   );
 };
 

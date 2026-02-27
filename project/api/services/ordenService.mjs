@@ -86,13 +86,17 @@ export const getById = async (id) => {
     fecha_inicial: ordenProduccion.fecha_inicial,
     fecha_estimada: ordenProduccion.fecha_estimada,
     fecha_solicitud: ordenProduccion.fecha_solicitud,
-    id_cliente: ordenProduccion.cliente?.nombre ?? "",
-    id_elaboracion: ordenProduccion.responsable_elaboracion?.nombre ?? "",
-    id_notificacion: ordenProduccion.responsable_notificacion?.nombre ?? "",
-    id_autorizacion: ordenProduccion.responsable_autorizacion?.nombre ?? "",
+    id_cliente: ordenProduccion.id_cliente,
+    nombre_cliente: ordenProduccion.cliente?.nombre ?? "",
+    id_elaboracion: ordenProduccion.id_elaboracion,
+    nombre_elaboracion: ordenProduccion.responsable_elaboracion?.nombre ?? "",
+    id_notificacion: ordenProduccion.id_notificacion,
+    nombre_notificacion: ordenProduccion.responsable_notificacion?.nombre ?? "",
+    id_autorizacion: ordenProduccion.id_autorizacion,
+    nombre_autorizacion: ordenProduccion.responsable_autorizacion?.nombre ?? "",
   };
 
-  if (ordenProduccion) {
+  if (!ordenProduccion) {
     throw new Error("Orden de producción no encontrada");
   }
 

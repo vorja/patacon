@@ -35,6 +35,6 @@ router.put(
   validarItem,
   updateItem
 );
-router.delete("/eliminar/:id", verificarToken, validarItem, deleteItem);
+router.delete("/eliminar/:id", verificarToken, validarItemId, deleteItem);
 
 export default router;

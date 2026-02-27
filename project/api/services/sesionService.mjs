@@ -7,10 +7,13 @@ dotenv.config();
 
 export const crearSesion = async (id, nombre, rol, deviceInfo) => {
   try {
+    const HORAS_EXPIRACION = 9; // Define aquí el número de horas
+
     const token = jwt.sign({ id, nombre, rol }, process.env.SECRET_KEY, {
-      expiresIn: "6h",
+      expiresIn: `${HORAS_EXPIRACION}h`, 
     });
-    const expira_en = new Date(Date.now() + 21600000); // 6 hora.
+
+    const expira_en = new Date(Date.now() + HORAS_EXPIRACION * 60 * 60 * 1000);
 
     await Sesion.create({
       id_usuario: id,

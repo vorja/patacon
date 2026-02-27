@@ -1,14 +1,11 @@
-import { ApiService, AlertManager } from "../../helpers/ApiUseManager.js";
+import { ApiService, AlertManager, Url } from "../../helpers/ApiUseManager.js";
 
-const apiTemeperatura = new ApiService(
-    "http://localhost:3105/data/temperatura"
-);
-const apiEmpleados = new ApiService("http://localhost:3105/data/empleados");
-const apiCuartos = new ApiService("http://localhost:3105/data/cuarto");
+const apiTemeperatura = new ApiService(Url + "/data/temperatura");
+const apiEmpleados = new ApiService(Url + "/data/empleados");
+const apiCuartos = new ApiService(Url + "/data/cuarto");
+
 const alerts = new AlertManager();
-const Token_API = document
-    .querySelector('meta[name="jwt"]')
-    .getAttribute("content");
+const Token_API = document.querySelector('meta[name="jwt"]').getAttribute("content");
 
 const init = async () => {
     await empleados();
@@ -102,6 +99,7 @@ async function enviarFormulario() {
         return false;
     }
     const fechaInput = document.getElementById("fecha").value;
+    console.log(fechaInput)
     const fechaArray = fechaInput.split("-");
     let fecha_mes = `${fechaArray[0]}-${fechaArray[1]}`;
 
@@ -113,7 +111,7 @@ async function enviarFormulario() {
             hora: document.querySelector("#hora").value,
             temperatura: document.querySelector("#temperatura").value,
             observaciones:
-                document.querySelector("#observasiones").value ||
+                document.querySelector("#Observaciones").value ||
                 "No hay observaciones.",
             id_responsable: document.querySelector("#responsableid").value,
             id_cuarto: document.querySelector("#cuartoid").value,

@@ -140,47 +140,50 @@
                 </div>
             </div>
             <div class="row mt-4">
-                <div class="mb-3 col-6 col-md-3">
-                    <h5 class="text-titles"><i class="fa-solid fa-kaaba  me-2" style="color: #ec6704"></i>Total Canastas
-                    </h5>
+                <div class="mb-3 col-2 col-md-3">
+                    <h5 class="text-titles"><i class="fa-solid fa-kaaba me-2" style="color: #ec6704"></i>Total Canastas</h5>
                     <div class="border-bottom mb-3"></div>
-                    <input type="number" min="0"
-                        class="form-control form-control-lg rounded shadow-sm text-center fw-semibold"
-                        id="totalCanastillas" 
-                         required readonly>
+                    <input type="number" min="0" class="form-control form-control-lg rounded shadow-sm text-center fw-semibold"
+                        id="totalCanastillas" required readonly>
                     <div class="invalid-feedback">
                         Este campo es obligatorio.
                     </div>
                 </div>
-                <div class="mb-3 col-6 col-md-3">
-                    <h5 class="text-titles"><i class="fa-solid fa-clock me-2" style="color: #ec6704"></i>Total (Kg)
-                        Patacón.</h5>
+                <div class="mb-3 col-2 col-md-3">
+                    <h5 class="text-titles"><i class="fa-solid fa-clock me-2" style="color: #ec6704"></i>Total (Kg) Patacón.</h5>
                     <div class="border-bottom mb-3"></div>
                     <input type="number" min="0"
-                        class="form-control form-control-lg rounded shadow-sm numeric text-center fw-semibold "
-                        id="totalPatacon" required readonly>
+                        class="form-control form-control-lg rounded shadow-sm numeric text-center fw-semibold" id="totalPatacon"
+                        required readonly>
                     <div class="invalid-feedback">
                         Este campo es obligatorio.
                     </div>
                 </div>
-                <div class="mb-3 col-6 col-md-3">
-                    <h5 class="text-titles"><i class="fa-solid fa-ban me-2" style="color: #ec6704"></i>Total Rechazo
-                    </h5>
+                <div class="mb-3 col-2 col-md-2">
+                    <h5 class="text-titles"><i class="fa-solid fa-ban me-2" style="color: #ec6704"></i>Total Rechazo</h5>
                     <div class="border-bottom mb-3"></div>
                     <input type="number" min="0"
-                        class="form-control form-control-lg rounded shadow-sm numeric text-center fw-semibold"
-                       id="totalRechazo" required readonly>
+                        class="form-control form-control-lg rounded shadow-sm numeric text-center fw-semibold" id="totalRechazo"
+                        required readonly>
                     <div class="invalid-feedback">
                         Este campo es obligatorio.
                     </div>
                 </div>
-                <div class="mb-3 col-6 col-md-3">
-                    <h5 class="text-titles"><i class="fa-solid fa-cubes-stacked me-2" style="color: #ec6704"></i>Total
-                        Migas</h5>
+                <div class="mb-3 col-2 col-md-2">
+                    <h5 class="text-titles"><i class="fa-solid fa-cubes-stacked me-2" style="color: #ec6704"></i>Total Migas</h5>
                     <div class="border-bottom mb-3"></div>
                     <input type="number" class="form-control form-control-lg rounded shadow-sm text-center fw-semibold"
                         id="totalMigas" required readonly>
-
+                    <div class="invalid-feedback">
+                        Este campo es obligatorio.
+                    </div>
+                </div>
+                <div class="mb-3 col-2 col-md-2">
+                    <h5 class="text-titles"><i class="fa-solid fa-arrow-down me-2" style="color: #ec6704"></i>Total Bajadas</h5>
+                    <div class="border-bottom mb-3"></div>
+                    <input type="number" min="0"
+                        class="form-control form-control-lg rounded shadow-sm numeric text-center fw-semibold" id="totalBajadas"
+                        required readonly>
                     <div class="invalid-feedback">
                         Este campo es obligatorio.
                     </div>

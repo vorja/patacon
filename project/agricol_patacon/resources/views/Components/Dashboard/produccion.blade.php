@@ -25,6 +25,10 @@
         <button class="nav-link " id="reportes-tab" data-bs-toggle="tab" data-bs-target="#reportes" type="button"
             role="tab">Reporte Producciones</button>
     </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link text-dark" id="enviar-tab" data-bs-toggle="tab" data-bs-target="#enviar" type="button"
+            role="tab">Enviar</button>
+    </li>
 </ul>
 
 <div class="tab-content">
@@ -56,6 +60,7 @@
                                     <h5 class="fw-bold mb-0">Orden de Producción</h5>
                                 </div>
 
+
                                 <!-- ORDEN ACTUAL -->
                                 <label for="ordenactualHidden"
                                     class="form-label text-secondary fw-semibold">Actual</label>
@@ -67,6 +72,14 @@
 
                                     <!-- Campo oculto que sigues usando -->
                                     <input type="hidden" id="ordenactualHidden" name="ordenactual">
+                                </div>
+
+                                <label for="clienteHidden" class="form-label text-secondary fw-semibold">Cliente</label>
+                                <div class="mb-3">
+                                    <span class="badge rounded-pill px-3 py-2"
+                                        style="background:#f1f1f1; color:#333; font-size: 1rem;">
+                                        <span id="clienteActual"></span>
+                                    </span>
                                 </div>
 
                                 <!-- CAMBIAR ORDEN -->
@@ -170,6 +183,12 @@
                             <div class="card-subtitle-proyeccion" id="kilosFaltantes">- kg faltantes</div>
                         </div>
 
+                        <div class="card-dashboard">
+                            <div class="card-title-proyeccion">Cajas En Bodega</div>
+                            <div class="card-value-proyeccion" id="cajasBodega">-</div>
+                            <div class="card-subtitle-proyeccion">bodega</div>
+                        </div>
+
                     </div>
                 </div>
 
@@ -238,7 +257,7 @@
                             </div>
                         </div>
                         <div class="row justify-content-between">
-                            <div class="col-4 mt-4 mb-2">
+                            <div class="col-8 mt-4 mb-2">
                                 <!-- Tabla de Inventario -->
                                 <div class="card border-0 shadow p-3 rounded-4">
                                     <div class="d-flex align-items-center gap-2 mb-3"
@@ -263,33 +282,6 @@
                                         </table>
                                     </div>
                                 </div>
-                            </div>
-                            <div class="col-5 mt-4 mb-2">
-                                <!-- Tabla de Inventario -->
-                                <div class="card border-0 shadow p-3 rounded-4">
-
-                                    <div class="d-flex align-items-center gap-2 mb-3"
-                                        style="align-items: center; gap: 10px;">
-                                        <i class="fa-solid fa-clipboard-list fs-3 p-1 shadow-sm rounded"
-                                            style="color: #6c780d"></i>
-                                        <span class="fw-bold text-dark">Empaque de Prducciones
-                                    </div>
-                                    <div class="table-responsive">
-
-                                        <table class="table table-hover tabla-personalized w-100 p-2"
-                                            id="tablaInventarioDiario">
-                                            <thead>
-                                                <tr>
-                                                    <th class="text-center G">Fecha</th>
-                                                    <th class="text-center G">Tipo</th>
-                                                    <th class="text-center G">Cantidad</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody></tbody>
-                                        </table>
-                                    </div>
-                                </div>
-
                             </div>
                         </div>
 
@@ -850,7 +842,7 @@
                         </div>
                     </div>
                     <div class="row text-center">
-                        <div class="col-6">
+                        <div class="col-10">
                             <div class="card shadow rounded-4 border-0">
                                 <div class="card-body">
                                     <div class="d-flex align-items-center gap-2 mb-2"
@@ -872,6 +864,207 @@
             </div>
         </div>
     </div>
+    <!-- Enviar -->
+    <div class="tab-pane fade" id="enviar" role="tabpanel">
+        <div class="container-fluid">
+            <div class="row g-4 mt-3 mb-3 justify-content-end align-items-center">
+                <div class="col text-center">
+                    <h3><i class="fa-solid fa-paper-plane"></i> Envío de Producción</h3>
+                </div>
+            </div>
+
+            <div class="row mb-4">
+                <div class="col-12 d-flex justify-content-between align-items-center">
+                    <button class="btn btn-warning" data-bs-toggle="modal" data-bs-target="#modalSobrantes">
+                        <i class="fa-solid fa-boxes"></i> Registrar Cajas Sobrantes
+                    </button>
+
+                    <button class="btn btn-warning" id="BtnPdf">
+                        <i class="fa-solid fa-file-pdf"></i> Generar PDF
+                    </button>
+                </div>
+            </div>
+
+            <div class="row mt-4">
+                <div class="col-12">
+                    <div class="card border-0 shadow rounded-4">
+                        <div class="card-header text-white py-3"
+                            style="background-color: #6c780d; border-top-left-radius: 16px; border-top-right-radius: 16px;">
+                            <div class="d-flex align-items-center gap-2">
+                                <i class="fa-solid fa-truck-fast fs-4"></i>
+                                <h5 class="fw-bold mb-0">Órdenes de Producción Listas para Envío</h5>
+                            </div>
+                        </div>
+
+                        <div class="table-responsive">
+                            <table class="table table-hover tabla-personalized w-100" id="tableEnviar">
+                                <thead>
+                                    <tr>
+                                        <th class="text-center align-middle"
+                                            style="background-color: #1e1e2f; color: white;">PRODUCCIÓN</th>
+                                        <th class="text-center align-middle"
+                                            style="background-color: #1e1e2f; color: white;">CAJA TIPO A</th>
+                                        <th class="text-center align-middle"
+                                            style="background-color: #1e1e2f; color: white;">CAJA TIPO B</th>
+                                        <th class="text-center align-middle"
+                                            style="background-color: #1e1e2f; color: white;">CAJA TIPO C</th>
+                                        <th class="text-center align-middle"
+                                            style="background-color: #1e1e2f; color: white;">CAJA TIPO AF</th>
+                                        <th class="text-center align-middle"
+                                            style="background-color: #1e1e2f; color: white;">CAJA TIPO BH</th>
+                                        <th class="text-center align-middle"
+                                            style="background-color: #1e1e2f; color: white;">CAJA TIPO XL</th>
+                                        <th class="text-center align-middle"
+                                            style="background-color: #1e1e2f; color: white;">CAJA TIPO CILINDRO</th>
+                                        <th class="text-center align-middle"
+                                            style="background-color: #1e1e2f; color: white;">CAJA TIPO PINTÓN</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td colspan="9" class="text-center py-4">
+                                            <div class="d-flex flex-column align-items-center">
+                                                <i class="fa-solid fa-box-open fa-3x text-secondary mb-2"></i>
+                                                <span class="text-secondary fw-semibold">No hay órdenes de producción
+                                                    listas para envío</span>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                                <tfoot>
+                                    <tr style="background-color: #f8f9fa;">
+                                        <th class="text-center fw-bold" colspan="1">TOTALES:</th>
+                                        <th class="text-center" id="totalTipoA">0</th>
+                                        <th class="text-center" id="totalTipoB">0</th>
+                                        <th class="text-center" id="totalTipoC">0</th>
+                                        <th class="text-center" id="totalTipoAF">0</th>
+                                        <th class="text-center" id="totalTipoBH">0</th>
+                                        <th class="text-center" id="totalTipoXL">0</th>
+                                        <th class="text-center" id="totalTipoCIL">0</th>
+                                        <th class="text-center" id="totalTipoPINTON">0</th>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Resumen de Envíos Realizados -->
+        <div class="row mt-4">
+            <div class="col-12">
+                <div class="card border-0 shadow rounded-4">
+                    <div class="card-header py-3"
+                        style="background-color: #313146; border-top-left-radius: 16px; border-top-right-radius: 16px;">
+                        <div class="d-flex align-items-center gap-2">
+                            <i class="fa-solid fa-clock-rotate-left fs-4 text-white"></i>
+                            <h5 class="fw-bold mb-0 text-white">Historial de Envíos</h5>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-hover tabla-personalized w-100" id="tableHistorialEnviar">
+                                <thead>
+                                    <tr>
+                                        <th class="text-center">FECHA ENVÍO</th>
+                                        <th class="text-center">PRODUCCIÓN</th>
+                                        <th class="text-center">TIPO A</th>
+                                        <th class="text-center">TIPO B</th>
+                                        <th class="text-center">TIPO C</th>
+                                        <th class="text-center">TIPO AF</th>
+                                        <th class="text-center">TIPO BH</th>
+                                        <th class="text-center">TIPO XL</th>
+                                        <th class="text-center">TIPO CIL</th>
+                                        <th class="text-center">TIPO PINTÓN</th>
+                                        <th class="text-center">ESTADO</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td colspan="11" class="text-center py-4">
+                                            <span class="text-secondary">Cargando historial...</span>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+</div>
+
+<!-- Modal para registrar cajas sobrantes -->
+<div class="modal fade" id="modalSobrantes" tabindex="-1" aria-labelledby="modalSobrantesLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header" style="background-color: #ffc107;">
+                <h5 class="modal-title fw-bold" id="modalSobrantesLabel">
+                    <i class="fa-solid fa-boxes"></i> Registrar Cajas Sobrantes
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="formSobrantes">
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="fechaSobrantes" class="form-label fw-semibold">Fecha de Registro:</label>
+                            <input type="date" class="form-control" id="fechaSobrantes" required>
+                        </div>
+                    </div>
+
+                    <h6 class="fw-bold mb-3">Cantidades Sobrantes por Tipo:</h6>
+
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label for="sobranteA" class="form-label">Tipo A:</label>
+                            <input type="number" class="form-control" id="sobranteA" min="0" value="0">
+                        </div>
+                        <div class="col-md-4">
+                            <label for="sobranteB" class="form-label">Tipo B:</label>
+                            <input type="number" class="form-control" id="sobranteB" min="0" value="0">
+                        </div>
+                        <div class="col-md-4">
+                            <label for="sobranteC" class="form-label">Tipo C:</label>
+                            <input type="number" class="form-control" id="sobranteC" min="0" value="0">
+                        </div>
+                        <div class="col-md-4">
+                            <label for="sobranteAF" class="form-label">Tipo AF:</label>
+                            <input type="number" class="form-control" id="sobranteAF" min="0" value="0">
+                        </div>
+                        <div class="col-md-4">
+                            <label for="sobranteBH" class="form-label">Tipo BH:</label>
+                            <input type="number" class="form-control" id="sobranteBH" min="0" value="0">
+                        </div>
+                        <div class="col-md-4">
+                            <label for="sobranteXL" class="form-label">Tipo XL:</label>
+                            <input type="number" class="form-control" id="sobranteXL" min="0" value="0">
+                        </div>
+                        <div class="col-md-4">
+                            <label for="sobranteCIL" class="form-label">Tipo Cilindro:</label>
+                            <input type="number" class="form-control" id="sobranteCIL" min="0" value="0">
+                        </div>
+                        <div class="col-md-4">
+                            <label for="sobrantePINTON" class="form-label">Tipo Pintón:</label>
+                            <input type="number" class="form-control" id="sobrantePINTON" min="0" value="0">
+                        </div>
+                    </div>
+
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-warning" id="BtnEnviar"">
+                    <i class=" fa-solid fa-save"></i> Guardar Sobrantes
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 </div>
 
 
@@ -947,7 +1140,7 @@
                     <div class="mb-3 col-md-6">
                         <label for="lote_produccion" class="form-label">Lote Produccion.</label>
                         <input type="text" class="form-control form-control-md  rounded-3shadow-sm"
-                            placeholder="Lote Contenedor" name="lote_produccion" id="lote_produccion" required>
+                            placeholder="Lote Contenedor" name="lote_produccion" id="lote_produccion" disabled>
                     </div>
 
                     <div class="mb-3 col-md-6">
@@ -963,6 +1156,16 @@
                             placeholder="Encargado de la elaboración">
                         <datalist id="listElaboracion"></datalist>
                         <input type="hidden" name="id_elaboracion" id="id_elaboracion" required>
+                    </div>
+
+                    <div class="mb-3 col-md-6">
+                        <label for="inputCliente" class="form-label">Cliente</label>
+                        <input list="listCliente" id="inputCliente"
+                            class="form-control form-control-md rounded-3 shadow-sm" autocomplete="off"
+                            placeholder="Asignar cliente (opcional)">
+                        <datalist id="listCliente"></datalist>
+                        <!-- Campo hidden para almacenar el ID del cliente -->
+                        <input type="hidden" id="clienteId" name="cliente_id">
                     </div>
 
                     <div class="col-12 text-end">
@@ -1083,6 +1286,13 @@
                         <input type="text" class="form-control form-control-sm rounded shadow-sm"
                             name="lote_produccion_info" id="lote_produccion_info" readonly>
                     </div>
+
+                    <div class="mb-3 col-md-6">
+                        <label for="cliente_info" class="form-label">Cliente.</label>
+                        <input type="number" min="0" class="form-control form-control-sm rounded shadow-sm"
+                            placeholder="Sin cliente asignado" name="cliente_info" id="cliente_info" readonly>
+                    </div>
+
                     <div class="mb-3 col-md-6">
                         <label for="cantidad_info" class="form-label">Cantidad.</label>
                         <input type="number" min="0" class="form-control form-control-sm rounded shadow-sm"
@@ -1567,7 +1777,8 @@
                             <span class="unit">kg</span>
                         </div>
                     </div>
-                    <div class="card-title text-center fw-semibold"><i class="fa-solid fa-tags me-2"></i>Rendimientos Por Referencia</div>
+                    <div class="card-title text-center fw-semibold"><i class="fa-solid fa-tags me-2"></i>Rendimientos
+                        Por Referencia</div>
                     <div id="inputsRitmo" class="row mt-4 mb-2"></div>
                     <div class="cajas-grid" id="ritmoCajas">
                         <!-- Las tarjetas se generarán dinámicamente -->

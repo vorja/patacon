@@ -7,48 +7,182 @@ import RegistroRecepcionMateriaPrima from "../models/registroRecepcionMateriaPri
 import ProveedorCorte from "../models/proveedorCorte.mjs";
 import Proveedor from "../models/proveedores.mjs";
 
+
 export const create = async (data) => {
-  const { detallesCortes, recepciones, proveedores, ...registroCorte } = data;
+  const { detallesCortes, recepciones, proveedores, fecha, ...restoRegistro } =
+    data;
 
-  const registroAreaCorte = await RegistroAreaCorte.create(registroCorte);
+  // Buscar si ya existe un registro con la misma fecha
+  let registroAreaCorte = await RegistroAreaCorte.findOne({
+    where: { fecha },
+  });
 
-  if (!registroAreaCorte || !registroAreaCorte.id) {
-    throw new Error("No se pudo crear el registro principal");
+  let esRegistroExistente = false;
+
+  if (!registroAreaCorte) {
+    registroAreaCorte = await RegistroAreaCorte.create({
+      fecha,
+      ...restoRegistro,
+    });
+  } else {
+    esRegistroExistente = true;
   }
 
-  const detallesInsertados = [];
+
   for (const detalle of detallesCortes) {
-    const detalleConId = {
-      ...detalle,
+    // Asegurar que lote tenga un valor válido
+    const loteValue = detalle.lote || "";
+
+    console.log(
+      `Procesando: Prov ${detalle.id_proveedor}, Lote: "${loteValue}", Tipo: ${detalle.tipo}, Kg: ${detalle.materia}`,
+    );
+
+    // Construir condición de búsqueda
+    const whereCondition = {
       id_corte: registroAreaCorte.id,
+      id_proveedor: detalle.id_proveedor,
+      tipo: detalle.tipo,
     };
-    const detalleInsertado = await DetalleAreaCorte.create(detalleConId);
-    detallesInsertados.push(detalleInsertado);
+
+    // Manejar lote_proveedor correctamente
+    if (loteValue) {
+      whereCondition.lote_proveedor = loteValue;
+    } else {
+      whereCondition.lote_proveedor = {
+        [Op.or]: [null, ""],
+      };
+    }
+
+    const detalleExistente = await DetalleAreaCorte.findOne({
+      where: whereCondition,
+    });
+
+    if (detalleExistente) {
+      await detalleExistente.update({
+        materia: parseFloat(detalle.materia),
+      });
+    } else {
+      const nuevo = await DetalleAreaCorte.create({
+        id_corte: registroAreaCorte.id,
+        id_proveedor: detalle.id_proveedor,
+        lote_proveedor: loteValue,
+        tipo: detalle.tipo,
+        materia: parseFloat(detalle.materia),
+      });
+    }
   }
 
-  const proveedorInsertado = [];
+  // ===== PROCESAR PROVEEDORES =====
+  console.log("----- PROCESANDO PROVEEDORES -----");
+
   for (const detalle of proveedores) {
-    const detalleConId = {
-      ...detalle,
-      id_corte: registroAreaCorte.id,
-    };
-    const detalleInsertado = await ProveedorCorte.create(detalleConId);
-    proveedorInsertado.push(detalleInsertado);
+    console.log(
+      `Procesando: Prov ${detalle.id_proveedor}, Lote: ${detalle.lote_proveedor}, Total: ${detalle.totalMateria}kg`,
+    );
+
+    const proveedorExistente = await ProveedorCorte.findOne({
+      where: {
+        id_corte: registroAreaCorte.id,
+        id_proveedor: detalle.id_proveedor,
+        lote_proveedor: detalle.lote_proveedor,
+      },
+    });
+
+    if (proveedorExistente) {
+      await proveedorExistente.update({
+        fecha_produccion: detalle.fecha_produccion || fecha,
+        totalMateria: parseFloat(detalle.totalMateria),
+        rechazo: parseFloat(detalle.rechazo),
+        rendimiento: parseFloat(detalle.rendimiento),
+      });
+      console.log(`  🔄 Actualizado ID: ${proveedorExistente.id}`);
+    } else {
+      const nuevo = await ProveedorCorte.create({
+        id_corte: registroAreaCorte.id,
+        id_proveedor: detalle.id_proveedor,
+        fecha_produccion: detalle.fecha_produccion || fecha,
+        lote_proveedor: detalle.lote_proveedor,
+        totalMateria: parseFloat(detalle.totalMateria),
+        rechazo: parseFloat(detalle.rechazo),
+        rendimiento: parseFloat(detalle.rendimiento),
+      });
+      console.log(`  ✅ Creado ID: ${nuevo.id}`);
+    }
   }
 
-  if (detallesInsertados.length <= 0) {
-    throw new Error("No se pudo registrar el detalle de la fritura.");
-  }
+  // ===== RECALCULAR VALORES GLOBALES =====
+  console.log("----- RECALCULANDO VALORES GLOBALES -----");
 
-  if (proveedorInsertado.length <= 0) {
-    throw new Error("No se pudo registrar el detalle de la fritura.");
-  }
-  const actualizarRecepcion = await RegistroRecepcionMateriaPrima.update(
-    { estado_corte: 0 },
-    { where: { id: recepciones } }
+  const todosLosDetalles = await DetalleAreaCorte.findAll({
+    where: { id_corte: registroAreaCorte.id },
+  });
+
+  const todosLosProveedores = await ProveedorCorte.findAll({
+    where: { id_corte: registroAreaCorte.id },
+  });
+
+  const totalMateriaCalculado = todosLosDetalles.reduce(
+    (sum, d) => sum + parseFloat(d.materia || 0),
+    0,
   );
 
-  return registroAreaCorte;
+  const rechazoCalculado = todosLosProveedores.reduce(
+    (sum, p) => sum + parseFloat(p.rechazo || 0),
+    0,
+  );
+
+  const todasLasRecepciones = await RegistroRecepcionMateriaPrima.findAll({
+    where: {
+      fecha: fecha,
+      estado_corte: { [Op.in]: [0, 1] },
+    },
+    attributes: ["cantidad"],
+  });
+
+  const materiaRecepcionadaTotal = todasLasRecepciones.reduce(
+    (sum, r) => sum + parseFloat(r.cantidad || 0),
+    0,
+  );
+
+  const rendimientoCalculado =
+    materiaRecepcionadaTotal > 0
+      ? parseFloat(
+          ((totalMateriaCalculado / materiaRecepcionadaTotal) * 100).toFixed(2),
+        )
+      : 0;
+
+  console.log(`Total materia: ${totalMateriaCalculado}kg`);
+  console.log(`Total rechazo: ${rechazoCalculado}kg`);
+  console.log(`Rendimiento: ${rendimientoCalculado}%`);
+
+  await registroAreaCorte.update({
+    total_materia: parseFloat(totalMateriaCalculado.toFixed(2)),
+    rechazo_corte: parseFloat(rechazoCalculado.toFixed(2)),
+    rendimiento_materia: rendimientoCalculado,
+  });
+
+  // ===== ACTUALIZAR RECEPCIONES =====
+  const idsRecepciones = Array.isArray(recepciones)
+    ? recepciones
+    : [recepciones];
+
+  if (idsRecepciones.length > 0) {
+    await RegistroRecepcionMateriaPrima.update(
+      { estado_corte: 0 },
+      { where: { id: idsRecepciones } },
+    );
+    console.log("✅ Recepciones actualizadas:", idsRecepciones);
+  }
+
+  console.log("========== CREATE FINALIZADO ==========");
+
+  return {
+    success: true,
+    message: esRegistroExistente
+      ? "Registro actualizado correctamente"
+      : "Registro creado correctamente",
+    data: registroAreaCorte,
+  };
 };
 
 export const getAll = async (id_produccion) => {
@@ -102,6 +236,7 @@ export const getAll = async (id_produccion) => {
     promedios,
   };
 };
+
 export const getInfoProveedor = async (id) => {
   try {
     const registroCorte = await RegistroAreaCorte.findOne({
@@ -154,6 +289,8 @@ export const getInfoProveedor = async (id) => {
       id: op.id,
       Tipo: op.tipo,
       Cantidad: op.materia,
+      Lote: op.lote_proveedor,
+      id_proveedor: op.id_proveedor,
       Proveedor: op.proveedor.nombre ?? "",
     }));
 

@@ -133,7 +133,7 @@ export const ACL = {
     DELETE: ["Dashboard", "Productor", "Dashboard"],
   },
   "/data/recepcion": {
-    GET: ["Gerente", "Productor", "Recepcion", "Produccion", "Dashboard"],
+    GET: ["Gerente", "Productor", "Recepcion", "Produccion", "Dashboard", "Alistamiento", "Corte", "Fritura"],
     POST: ["Recepcion", "Produccion"],
     PUT: ["Productor", "Produccion"],
     DELETE: ["Produccion", "Dashboard"],
@@ -145,13 +145,13 @@ export const ACL = {
     DELETE: ["Produccion", "Dashboard"],
   },
   "/data/alistamiento": {
-    GET: ["Gerente", "Productor", "Corte", "Produccion", "Dashboard"],
+    GET: ["Gerente", "Productor", "Corte", "Produccion", "Dashboard", "Alistamiento"],
     POST: ["Alistammiento", "Produccion", "Productor"],
     PUT: ["Produccion", "Dashboard", "Productor"],
     DELETE: ["Produccion", "Dashboard"],
   },
   "/data/corte": {
-    GET: ["Gerente", "Productor", "Fritura", "Produccion", "Dashboard"],
+    GET: ["Gerente", "Productor", "Fritura", "Produccion", "Dashboard", "Corte"],
     POST: ["Corte", "Produccion"],
     PUT: ["Produccion", "Dashboard", "Productor"],
     DELETE: ["Produccion", "Dashboard"],
@@ -192,7 +192,7 @@ export const ACL = {
     PUT: ["Dashboard", "Productor", "RRHH"],
     DELETE: ["Dashboard", "RRHH", "Productor"],
   },
-  "/data/verificacionEmpaques": {
+  "/data/verificacion": {
     GET: ["Gerente", "Productor", "Produccion", "Dashboard", "Empaque"],
     POST: ["Empaque", "Produccion"],
     PUT: ["Produccion", "Empaque", "Dashboard", "Productor"],
@@ -203,6 +203,12 @@ export const ACL = {
     POST: ["Cuartos", "Produccion"],
     PUT: ["Produccion", "Productor"],
     DELETE: ["Produccion", "Dashboard"],
+  },
+  "/data/lotes-fritura": {
+    GET: ["Gerente", "Productor", "Produccion", "Dashboard", "Fritura"],
+    POST: ["Fritura", "Produccion", "Gerente"],
+    PUT: ["Produccion", "Dashboard", "Productor", "Fritura", "Gerente"],
+    DELETE: ["Produccion", "Dashboard", "Gerente"],
   },
 };
 

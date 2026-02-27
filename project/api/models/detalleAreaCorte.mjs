@@ -28,6 +28,10 @@ const DetalleAreaCorte = sequelize.define(
         key: "id",
       },
     },
+    lote_proveedor: {
+      type: DataTypes.STRING(255),
+      allowNull: true,
+    },
     tipo: {
       type: DataTypes.STRING(5),
       allowNull: false,
@@ -40,7 +44,7 @@ const DetalleAreaCorte = sequelize.define(
   {
     tableName: "detalle_corte",
     timestamps: false,
-  }
+  },
 );
 DetalleAreaCorte.belongsTo(Proveedor, {
   as: "proveedor",

@@ -1,10 +1,10 @@
-import { AlertManager, ApiService } from "../../helpers/ApiUseManager.js";
+import { AlertManager, ApiService, Url } from "../../helpers/ApiUseManager.js";
 import eventManager from "../../helpers/EventsManager.js";
 import notificationManager from "../../helpers/NotificacionesManger.js";
 
 // Inicializar
-const API_CLIENTE = new ApiService("http://localhost:3105/data/cliente");
-const API_EMPLEADOS = new ApiService("http://localhost:3105/data/empleados");
+const API_CLIENTE = new ApiService(Url + "/data/cliente");
+const API_EMPLEADOS = new ApiService(Url + "/data/empleados");
 
 const alerts = new AlertManager();
 const elements_cliente = {

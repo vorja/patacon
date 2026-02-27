@@ -130,7 +130,7 @@
                                         </th>
                                         <th class="M text-center"><i class="fas fa-tag me-1"></i>LOTE RECEPCION</th>
                                         <th class="M text-center"> CANTIDAD</th>
-                                        <th class="text-center">ACCION</th>
+                                        <th class="text-center"></th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -144,7 +144,7 @@
         </div>
     </div>
 </div>
-{{-- Info Alistamiento --}}{{--
+
 <div class="modal fade" id="ModalInfo" tabindex="-1" aria-labelledby="createModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-xl modal-dialog-centered">
         <div class="modal-content border-0 shadow-lg rounded-4">
@@ -156,7 +156,7 @@
                     </div>
                 </div>
                 <h5 class="modal-title fw-bold" id="modalInfoRecepcionLabel" style="color:#ffffff;">
-                    INFORMACIÓN DE CANASTILLAS
+                    INFORMACIÓN DE MATERIA PRIMA
                 </h5>
                 <div class="d-flex align-items-center gap-2">
                     <img src="/assets/images/logo-clean.png" alt="Logo Empresa" style='max-height: 55px;'>
@@ -164,75 +164,78 @@
             </div>
 
             <div class="modal-body px-4 py-3" style="background-color: #f5f7ff; color: #070707;">
-                <!-- Sección de título -->
-                <ul class="nav nav-tabs mb-3" id="prodTabs" role="tablist">
+                <!-- Información principal -->
+                <div class="row mb-4" id="infoPrincipal">
+                    <!-- Se llenará dinámicamente -->
+                </div>
 
+                <!-- Tabs -->
+                <ul class="nav nav-tabs mb-3" id="infoTabs" role="tablist">
                     <li class="nav-item" role="presentation">
-                        <button class="nav-link fw-semibold" id="empacadas-tab" data-bs-toggle="tab"
-                            data-bs-target="#empacadas" type="button" role="tab">Inv. Empacadas</button>
+                        <button class="nav-link fw-semibold active" id="recepcion-tab" data-bs-toggle="tab"
+                            data-bs-target="#recepcion" type="button" role="tab">Recepción OP</button>
                     </li>
-
                     <li class="nav-item" role="presentation">
-                        <button class="nav-link  active fw-semibold" id="proveedores-tab" data-bs-toggle="tab"
-                            data-bs-target="#proveedores" type="button" role="tab">Inv. Proveedores</button>
+                        <button class="nav-link fw-semibold" id="detalle-tab" data-bs-toggle="tab"
+                            data-bs-target="#detalle" type="button" role="tab">Detalle Recepción</button>
                     </li>
-
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link fw-semibold" id="maduro-tab" data-bs-toggle="tab"
+                            data-bs-target="#maduro" type="button" role="tab">Plátano Maduro</button>
+                    </li>
                 </ul>
-                <div class="tab-content">
-                    <div class="tab-pane fade" id="empacadas" role="tabpanel">
-                        <div class="row g-3 mt-2">
-                            <div class="col-md-12">
-                                <div class="table-responsive">
-                                    <table class="table tabla-personalized w-100 p-3" id="tablaInfo">
-                                        <thead class="table">
-                                            <tr>
-                                                <th class="AG text-center">FECHA DE EMPAQUE</th>
-                                                <th class="M text-center">LOTE DE EMPAQUE</th>
-                                                <th class="M text-center">FECHA DE PRODUCCIÓN</th>
-                                                <th class="M text-center">TIPO</th>
-                                                <th class="M text-center">CANASTILLAS</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
 
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
+                <div class="tab-content">
+                    <!-- Tab Recepción OP -->
+                    <div class="tab-pane fade show active" id="recepcion" role="tabpanel">
+                        <div id="infoRecepcionOp" class="p-3">
+                            <!-- Contenido dinámico -->
                         </div>
                     </div>
 
-                    <div class="tab-pane show active fade" id="proveedores" role="tabpanel">
-                        <div class="row g-3 mt-2">
-                            <div class="col-md-12">
-                                <div class="table-responsive">
-                                    <table class="table tabla-personalized w-100 p-3" id="tablaInfoProveedores">
-                                        <thead class="table display">
-                                            <tr>
-                                                <th rowspan="2" class="AG text-center">LOTE DE PRODUCCION</th>
-                                                <th rowspan="2" class="AG text-center">LOTE DE PROVEEDOR</th>
-                                                <th rowspan="2" class="AG text-center">TIPO</th>
-                                                <th colspan="2" class="M text-center">CANASTAS</th>
-                                                <th rowspan="2" class="F text-center">SALDO</th>
-                                            </tr>
-                                            <tr>
-                                                <th class="text-center"><i class="fa-solid fa-boxes-packing"></i>
-                                                    Producidas</th>
-                                                <th class="text-center"><i class="fa-solid fa-box-open"></i>
-                                                    Empacadas</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
+                    <!-- Tab Detalle Recepción -->
+                    <div class="tab-pane fade" id="detalle" role="tabpanel">
+                        <div class="table-responsive">
+                            <table class="table tabla-personalized w-100" id="tablaDetalleRecepcion">
+                                <thead>
+                                    <tr>
+                                        <th class="text-center">N</th>
+                                        <th class="text-center">Canastillas / Racimos</th>
+                                        <th class="text-center">Peso (Kg)</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tbodyDetalleRecepcion">
+                                    <!-- Llenado dinámico -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
 
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
+                    <!-- Tab Plátano Maduro -->
+                    <div class="tab-pane fade" id="maduro" role="tabpanel">
+                        <div class="table-responsive">
+                            <table class="table tabla-personalized w-100" id="tablaMaduroRelacionado">
+                                <thead>
+                                    <tr>
+                                        <th class="text-center">Fecha</th>
+                                        <th class="text-center">Producto</th>
+                                        <th class="text-center">Lote</th>
+                                        <th class="text-center">Cantidad (Kg)</th>
+                                        <th class="text-center">Observaciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tbodyMaduroRelacionado">
+                                    <!-- Llenado dinámico -->
+                                </tbody>
+                            </table>
                         </div>
                     </div>
                 </div>
             </div>
+
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+            </div>
         </div>
     </div>
 </div>
---}}

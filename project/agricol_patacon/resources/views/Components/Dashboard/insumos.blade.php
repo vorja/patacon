@@ -12,7 +12,7 @@
             <div class="carousel-inner">
                 <div class="carousel-item active">
                     <div class="content d-flex justify-content gap-3">
-                        <div class="col-2 mt-2 mb-3">
+                        <div class="col-4 mt-2 mb-3">
                             <div class="card border-0 rounded-4 shadow-sm">
                                 <div class="card-body">
                                     <div class="d-flex justify-content-between align-items-center">
@@ -111,7 +111,6 @@
                             <input type="date" class="form-control 
                             rounded shadow-sm text-center" name="fecha" id="fecha" required>
                         </div>
-
                     </div>
                     <div class="col-12">
                         <h5> <span class="badge fw-bold rounded p-2 mt-1"
@@ -122,51 +121,42 @@
 
                     <div class="mb-3 col-md-4">
                         <label for="Proveedor" class="form-label">Proveedor</label>
-                        <Select class="proveedores form-control 
-                        rounded shadow-sm" id="proveedores" required>
-                            <option selected disabled>...</option>
-
-                        </Select>
+                        <select class="proveedores form-control rounded shadow-sm" id="proveedores" required>
+                            <option value="" selected disabled>Seleccione un proveedor...</option>
+                        </select>
                     </div>
 
                     <div class="mb-3 col-md-4">
                         <label for="listItems" class="form-label">Producto</label>
-                        <Select class="listItems form-control 
-                        rounded shadow-sm" id="listItems" required>
-                            <option selected disabled>...</option>
-
-                        </Select>
+                        <select class="listItems form-control rounded shadow-sm" id="listItems" required>
+                            <option value="" selected disabled>Seleccione un producto...</option>
+                        </select>
                     </div>
 
                     <div class="mb-3 col-md-4">
                         <label for="cantidad" class="form-label">Cantidad</label>
-                        <input type="number" class="form-control 
-                        rounded shadow-sm" name="cantidad" id="cantidad" required autocomplete="off"
-                            placeholder="Cantidad..">
+                        <input type="number" class="form-control rounded shadow-sm" name="cantidad" id="cantidad"
+                            required autocomplete="off" placeholder="Cantidad.." min="1">
                     </div>
 
                     <div class="mb-3 col-md-4">
                         <label for="Lote" class="form-label">Lote</label>
-                        <input type="text" class="form-control 
-                        rounded shadow-sm" name="lote" id="lote" required autocomplete="off"
-                            placeholder="Lote del producto..">
+                        <input type="text" class="form-control rounded shadow-sm" name="lote" id="lote" required
+                            autocomplete="off" placeholder="Lote del producto..">
                     </div>
                     <div class="mb-3 col-md-4">
                         <label for="vencimiento" class="form-label">Vencimiento</label>
-                        <input type="date" class="form-control 
-                        rounded shadow-sm" name="fechaVencimiento" id="fechaVencimiento" required
-                            autocomplete="off">
+                        <input type="date" class="form-control rounded shadow-sm" name="fechaVencimiento"
+                            id="fechaVencimiento" required autocomplete="off">
                     </div>
                     <div class="mb-3 col-md-4">
-                        <label for="area" class="form-label">Area
-                        </label>
-                        <Select class="area form-control 
-                        rounded shadow-sm" id="area" required>
-                            <option selected disabled>...</option>
+                        <label for="area" class="form-label">Area</label>
+                        <select class="area form-control rounded shadow-sm" id="area" required>
+                            <option value="" selected disabled>Seleccione un área...</option>
                             <option value="Fritura">Fritura</option>
                             <option value="Alistamiento">Alistamiento</option>
                             <option value="Aseo">Aseo</option>
-                        </Select>
+                        </select>
                     </div>
                     <div class="col-12">
                         <h5> <span class="badge fw-bold rounded p-2 mt-3"
@@ -175,21 +165,17 @@
                     </div>
                     <div class="mb-3 col-md-6">
                         <label for="ListaDefectos" class="form-label"> Defectos (Opcional)</label>
-                        <input type="text" class="form-control 
-                        rounded shadow-sm" name="defectos" id="defectos" autocomplete="off"
-                            placeholder="Defectos encontrados..">
-
+                        <input type="text" class="form-control rounded shadow-sm" name="defectos" id="defectos"
+                            autocomplete="off" placeholder="Defectos encontrados..">
                     </div>
                     <div class="mb-3 col-md-6">
-                        <label for="Defectos" class="form-label">Defectos</label>
-                        <input type="number" class="form-control 
-                        rounded shadow-sm" name="cantidadDef" min="0" id="cantidadDef" autocomplete="off"
-                            placeholder="Cantidad..">
+                        <label for="Defectos" class="form-label">Cantidad de Defectos</label>
+                        <input type="number" class="form-control rounded shadow-sm" name="cantidadDef" min="0"
+                            id="cantidadDef" autocomplete="off" placeholder="Cantidad de defectos.." value="0">
                     </div>
 
                     <div class="mb-3 col-md-6">
                         <label for="Calidad" class="form-label">Calidad</label>
-                        <!-- Dropdown personalizado -->
                         <div class="dropdown">
                             <button class="btn btn-outline-secondary dropdown-toggle w-100 border-1" type="button"
                                 id="dropdownCalidadbtn" data-bs-toggle="dropdown" aria-expanded="false">
@@ -197,8 +183,6 @@
                             </button>
                             <ul class="dropdown-menu w-100 p-3" aria-labelledby="dropdownCalidadbtn"
                                 style="max-height: 300px; overflow-y: auto;">
-
-                                <!-- Color -->
                                 <li class="mb-2">
                                     <table class="table table-bordered text-center">
                                         <thead class="table-primary">
@@ -213,54 +197,54 @@
                                             </tr>
                                         </thead>
                                         <tbody>
-
                                             <tr>
                                                 <td>Color</td>
                                                 <td>
-                                                    <input type="radio" id="color" value="Si">
+                                                    <input type="radio" name="color" value="Si" id="color_si">
                                                 </td>
                                                 <td>
-                                                    <input type="radio" id="color" value="No">
+                                                    <input type="radio" name="color" value="No" id="color_no">
                                                 </td>
                                             </tr>
-
                                             <tr>
                                                 <td>Olor</td>
                                                 <td>
-                                                    <input type="radio" id="olor" value="Si">
+                                                    <input type="radio" name="olor" value="Si" id="olor_si">
                                                 </td>
                                                 <td>
-                                                    <input type="radio" id="olor" value="No">
+                                                    <input type="radio" name="olor" value="No" id="olor_no">
                                                 </td>
                                             </tr>
-
                                             <tr>
                                                 <td>Estado Físico</td>
                                                 <td>
-                                                    <input type="radio" id="estado" value="Si">
+                                                    <input type="radio" name="estado" value="Si" id="estado_si">
                                                 </td>
                                                 <td>
-                                                    <input type="radio" id="estado" value="No">
+                                                    <input type="radio" name="estado" value="No" id="estado_no">
                                                 </td>
                                             </tr>
                                         </tbody>
                                     </table>
-
                                 </li>
-
                             </ul>
                         </div>
                     </div>
                     <div class="mb-3 col-md-6">
-                        <label for="inputElaboracion" class="form-label">Responsable.</label>
-                        <input list="listElaboracion" id="inputElaboracion" class="form-control 
-                            rounded shadow-sm" autocomplete="off" placeholder="Responsable del registro">
+                        <label for="inputElaboracion" class="form-label">Responsable</label>
+                        <input list="listElaboracion" id="inputElaboracion" class="form-control rounded shadow-sm"
+                            autocomplete="off" placeholder="Busque o escriba el nombre del responsable" required>
                         <datalist id="listElaboracion"></datalist>
-                        <input type="hidden" name="id_elaboracion" id="id_elaboracion"  required>
+                        <input type="hidden" name="id_elaboracion" id="id_elaboracion" required>
                     </div>
 
                     <div class="col-12 text-end">
-                        <button type="submit" class="btn text-white" style="background-color: #5dbb1f">Registrar</button>
+                        <button type="submit" class="btn text-white" style="background-color: #5dbb1f" id="btnSubmit">
+                            Registrar
+                        </button>
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                            Cancelar
+                        </button>
                     </div>
                     <div class="col-12 text-center mt-2">
                         <small>Aceptas nuestras Políticas de Privacidad y Términos de Servicio al enviar este
@@ -268,7 +252,6 @@
                     </div>
                 </form>
             </div>
-
         </div>
     </div>
 </div>

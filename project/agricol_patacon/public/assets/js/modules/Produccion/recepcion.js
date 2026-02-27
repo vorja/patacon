@@ -1,9 +1,11 @@
-import { ApiService, AlertManager } from "../../helpers/ApiUseManager.js";
+import { ApiService, AlertManager, Url } from "../../helpers/ApiUseManager.js";
+
 const alerts = new AlertManager();
-const apiRecepcion = new ApiService("http://localhost:3105/data/recepcion");
-const apiProveedores = new ApiService("http://localhost:3105/data/proveedor");
-const apiEncargo = new ApiService("http://localhost:3105/config/encargo");
-const apiEmpleados = new ApiService("http://localhost:3105/data/empleados");
+
+const apiRecepcion = new ApiService(Url + "/data/recepcion");
+const apiProveedores = new ApiService(Url + "/data/proveedor");
+const apiEncargo = new ApiService(Url + "/config/encargo");
+const apiEmpleados = new ApiService(Url + "/data/empleados");
 
 const token = document
     .querySelector('meta[name="jwt"]')
@@ -89,7 +91,7 @@ function configCalendario() {
     // Configurar el mínimo en el input
     document.getElementById("fecha").setAttribute("min", hoy);
 }
-configCalendario();
+//configCalendario();
 
 function generadorLote() {
     // generamos el nombre del lote de producción con las primeras 3 letras del proveedor y el lote de producción seleccionado.
@@ -157,9 +159,7 @@ function updateTotalMateria() {
     }
 
     // Calcular total
-    let total =
-        parseFloat(inputsMateriaRecp.value?.trim() || 0) -
-        parseFloat(inputDefectos?.value?.trim() || 0);
+    let total = parseFloat(inputsMateriaRecp.value?.trim() || 0) /* - parseFloat(inputDefectos?.value?.trim() || 0) */;
 
     inputsMateria.value = total;
 
@@ -332,30 +332,21 @@ guardarRegistroButton.addEventListener("click", (e) => {
             const formData = {
                 fecha: document.getElementById("fecha").value,
                 id_proveedor: document.getElementById("id_proveedor").value,
-                fecha_procesamiento: document.getElementById(
-                    "fecha_procesamiento"
-                ).value,
+                fecha_procesamiento: document.getElementById("fecha_procesamiento").value,
+                brix: document.getElementById("brix").value || 0,
                 producto: document.getElementById("producto").value,
-                materia_recep:
-                    document.getElementById("cantidadRecepccion").value,
+                materia_recep: document.getElementById("cantidadRecepccion").value,
                 cantidad: document.getElementById("cantidad").value,
                 lote: document.getElementById("lote_produccion").value,
-                cant_defectos:
-                    document.getElementById("cant_defectos").value || 0,
+                cant_defectos: document.getElementById("cant_defectos").value || 0,
                 id_responsable: document.getElementById("id_responsable").value,
                 color: document.getElementById("color").checked ? "Si" : "No",
                 olor: document.getElementById("olor").checked ? "Si" : "No",
-                estado_fisico: document.getElementById("estado_fisico").checked
-                    ? "En condiciones"
-                    : "Mal estado",
-                cumple: document.getElementById("cumple").checked
-                    ? "Si Cumple"
-                    : "No Cumple",
+                estado_fisico: document.getElementById("estado_fisico").checked ? "En condiciones" : "Mal estado",
+                cumple: document.getElementById("cumple").checked ? "Si Cumple" : "No Cumple",
                 orden: document.getElementById("idEncargo").value,
                 defectos: datos,
-                observaciones:
-                    document.getElementById("Observaciones").value ||
-                    "No hay Observaciones",
+                observaciones: document.getElementById("Observaciones").value || "No hay Observaciones",
             };
 
             console.log(formData);
@@ -399,6 +390,9 @@ const empleados = async () => {
     fillDatalist(empleadolist, responsables);
     handleInput(empleadolist, "nombreResponsable", "id_responsable");
 };
+
+let proveedoresData = [];
+
 const proveedores = async () => {
     const response = await apiProveedores.get("/obtener-lista", {
         headers: {
@@ -411,12 +405,76 @@ const proveedores = async () => {
         return false;
     }
 
-    const { proveedores } = response.data;
-    const proveedorlist = document.getElementById("proveedorlist");
-
-    fillDatalist(proveedorlist, proveedores);
-    handleInput(proveedorlist, "nombreProveedor", "id_proveedor");
+    proveedoresData = response.data.proveedores;
+    setupAutocomplete();
 };
+
+const setupAutocomplete = () => {
+    const input = document.getElementById("nombreProveedor");
+    const suggestionsDiv = document.getElementById("suggestions");
+
+    input.addEventListener("input", function (e) {
+        const value = this.value.toLowerCase();
+
+        if (value.length < 1) {
+            suggestionsDiv.style.display = "none";
+            document.getElementById("id_proveedor").value = "";
+            return;
+        }
+
+        // Filtrar proveedores
+        const filtered = proveedoresData.filter((p) =>
+            p.nombre.toLowerCase().includes(value),
+        );
+
+        // Mostrar sugerencias
+        if (filtered.length > 0) {
+            suggestionsDiv.innerHTML = filtered
+                .map(
+                    (p) => `
+                <a href="#" class="list-group-item list-group-item-action" 
+                   data-id="${p.id}" data-nombre="${p.nombre}">
+                    ${p.nombre}
+                </a>
+            `,
+                )
+                .join("");
+            suggestionsDiv.style.display = "block";
+        } else {
+            suggestionsDiv.style.display = "none";
+        }
+    });
+
+    // Manejar clic en sugerencias
+    suggestionsDiv.addEventListener("click", function (e) {
+        e.preventDefault();
+        const target = e.target.closest(".list-group-item");
+        if (target) {
+            input.value = target.dataset.nombre;
+            document.getElementById("id_proveedor").value = target.dataset.id;
+            suggestionsDiv.style.display = "none";
+
+            generadorLote();
+            saveFormData();
+        }
+    });
+
+    // Ocultar sugerencias al hacer clic fuera
+    document.addEventListener("click", function (e) {
+        if (!input.contains(e.target) && !suggestionsDiv.contains(e.target)) {
+            suggestionsDiv.style.display = "none";
+        }
+    });
+
+    // Teclas especiales
+    input.addEventListener("keydown", function (e) {
+        if (e.key === "Escape") {
+            suggestionsDiv.style.display = "none";
+        }
+    });
+};
+
+
 const encargo = async () => {
     const response = await apiEncargo.get("/leer", {
         headers: {
@@ -431,9 +489,12 @@ const encargo = async () => {
     }
     const { configuracion } = response.data;
     document.getElementById("idEncargo").value = configuracion[0].orden_actual;
+
 };
 
-const socket = new WebSocket("ws://localhost:3105");
+let x = Url.replace("http:", "");
+
+const socket = new WebSocket("ws:"+ x);
 
 socket.onmessage = (event) => {
     const msg = JSON.parse(event.data);

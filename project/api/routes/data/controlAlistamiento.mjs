@@ -7,6 +7,7 @@ import {
   getInfoAlistamientoById,
   updateControlAlistamiento,
   deleteControlAlistamiento,
+  restarCantidadProveedor,
 } from "../../controllers/data/controlAlistamiento.mjs";
 
 import { verificarACL } from "../../middlewares/acl.mjs";
@@ -59,6 +60,14 @@ router.delete(
   verificarToken,
   validarId,
   deleteControlAlistamiento
+);
+
+// En routes/data/recepcion.mjs - AÑADIR ESTA RUTA
+
+router.put(
+  "/restar-cantidad/:id", 
+  verificarToken, 
+  restarCantidadProveedor
 );
 
 export default router;

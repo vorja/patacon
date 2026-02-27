@@ -13,7 +13,7 @@
             <div class="carousel-inner">
                 <div class="carousel-item active">
                     <div class="content d-flex justify-content gap-3">
-                        <div class="col-2 mt-2 mb-3">
+                        <div class="col-4 mt-2 mb-3">
                             <div class="card border-0 rounded-4 shadow-sm">
                                 <div class="card-body">
                                     <div class="d-flex justify-content-between align-items-center">
@@ -269,10 +269,8 @@
                 style="background-color: #f5f7ff; color: #070707;">
                 <div class="d-flex align-items-center gap-2">
                     <img src="/assets/images/logo-clean.png" alt="Logo Empresa" style='max-height: 55px;'>
+                    <h4 class="fw-bold text-dark m-0">INFORMACIÓN PROVEEDOR</h4>
                 </div>
-                <h4 class="fw-bold text-dark m-0">INFORMACIÓN PROVEEDOR</h4>
-                <button type="button" id="btnAgregar" class="btn btn-light shadow-xl btn-pdf rounded-circle p-2"><i
-                        class="fa-solid fa-file-pdf fs-4 p-1" style="color: #d41414"></i></button>
             </div>
             <!-- Body -->
             <div class="modal-body px-2 py-4" style="background-color: #f5f7ff; color: #070707;">

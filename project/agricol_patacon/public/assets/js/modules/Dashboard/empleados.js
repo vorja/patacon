@@ -1,9 +1,10 @@
-import { AlertManager, ApiService } from "../../helpers/ApiUseManager.js";
+import { AlertManager, ApiService, Url } from "../../helpers/ApiUseManager.js";
 import eventManager from "../../helpers/EventsManager.js";
 import notificationManager from "../../helpers/NotificacionesManger.js";
 
-const API_EMPLEADOS = new ApiService("http://localhost:3105/data/empleados");
-const API_ROLES = new ApiService("http://localhost:3105/data/rol");
+const API_EMPLEADOS = new ApiService(Url + "/data/empleados");
+const API_ROLES = new ApiService(Url + "/data/rol");
+
 const alerts = new AlertManager();
 
 const token = document
@@ -175,7 +176,7 @@ async function cargarEmpleados() {
                 var api = this.api();
                 let numRegistros = api.rows({ filter: "applied" }).count();
                 let tableWrapper = $(api.table().container());
-                if (numRegistros <= 15) {
+                if (numRegistros <= 11) {
                     tableWrapper.find(".dataTables_paginate").hide();
                 } else {
                     tableWrapper.find(".dataTables_paginate").show();

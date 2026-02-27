@@ -1,8 +1,9 @@
-import { AlertManager, ApiService } from "../../helpers/ApiUseManager.js";
+import { AlertManager, ApiService, Url } from "../../helpers/ApiUseManager.js";
 import eventManager from "../../helpers/EventsManager.js";
 import notificationManager from "../../helpers/NotificacionesManger.js";
 
-const API_EMPAQUE = new ApiService("http://localhost:3105/data/empaque");
+const API_EMPAQUE = new ApiService(Url + "/data/empaque");
+
 const alerts = new AlertManager();
 
 const elementsEmpaque = {
@@ -13,6 +14,7 @@ const token = document
     .querySelector('meta[name="jwt"]')
     .getAttribute("content");
 
+// Modifica la función cargarEmpaque para usar jQuery.on() con namespace
 async function cargarEmpaque(fecha) {
     let retorno = false;
     try {
@@ -22,6 +24,7 @@ async function cargarEmpaque(fecha) {
                 "El Formato de fecha no es valido. Debe ser YYYY-MM-dd."
             );
         }
+        
         const response = await API_EMPAQUE.get(
             `/obtener-empaques-month/${fecha}`,
             {
@@ -41,7 +44,16 @@ async function cargarEmpaque(fecha) {
 
         asignarPromedio(promedios);
 
-        $("#tableEmpaque").DataTable({
+        // DESTRUIR LA DATATABLE EXISTENTE ANTES DE CREAR UNA NUEVA
+        if ($.fn.DataTable.isDataTable('#tableEmpaque')) {
+            // También limpia eventos antes de destruir
+            $('#tableEmpaque').off('.empqueEvents');
+            $('#tableEmpaque').DataTable().destroy();
+            $('#tableEmpaque tbody').empty();
+        }
+
+        // Ahora inicializa la nueva DataTable
+        const table = $("#tableEmpaque").DataTable({
             data: empaques,
             searching: true,
             processing: true,
@@ -49,6 +61,8 @@ async function cargarEmpaque(fecha) {
             responsive: true,
             orderCellsTop: true,
             deferRender: true,
+            destroy: true,
+            retrieve: true,
             dom: "Bfrtip",
             columns: [
                 { data: "Empaque" },
@@ -80,88 +94,11 @@ async function cargarEmpaque(fecha) {
 </div>`,
                 },
             ],
-            initComplete: function () {
-                const api = this.api();
-                const $header = $(api.table().header()); // <thead>
-
-                // Recorremos columnas y conectamos la 2da fila (filtros)
-                api.columns().every(function (colIdx) {
-                    const column = this;
-                    const $thFilter = $header.find("tr:eq(1) th").eq(colIdx);
-
-                    // INPUT -> búsqueda libre (contains)
-                    const $input = $thFilter.find("input");
-                    if ($input.length) {
-                        $input
-                            .off("keyup change")
-                            .on("keyup change", function () {
-                                const val = this.value;
-                                if (column.search() !== val) {
-                                    column.search(val).draw();
-                                }
-                            });
-                    }
-
-                    // SELECT -> opciones únicas + match exacto
-                    const $select = $thFilter.find("select");
-                    if ($select.length) {
-                        // llenar opciones únicas ordenadas
-                        const uniques = column.data().unique().sort();
-                        // limpiar por si reinicializas
-                        $select
-                            .empty()
-                            .append('<option value="">Todos</option>');
-                        uniques.each(function (d) {
-                            if (d !== null && d !== undefined && d !== "") {
-                                $select.append(
-                                    `<option value="${d}">${d}</option>`
-                                );
-                            }
-                        });
-
-                        $select.off("change").on("change", function () {
-                            const val = $.fn.dataTable.util.escapeRegex(
-                                $(this).val()
-                            );
-                            column
-                                .search(val ? `^${val}$` : "", true, false)
-                                .draw();
-                        });
-                    }
-                });
-            },
-            drawCallback: function () {
-                var api = this.api();
-                let numRegistros = api.rows({ filter: "applied" }).count();
-                let tableWrapper = $(api.table().container());
-                if (numRegistros <= 15) {
-                    tableWrapper.find(".dataTables_paginate").hide();
-                } else {
-                    tableWrapper.find(".dataTables_paginate").show();
-                }
-            },
-            language: {
-                url: "https://cdn.datatables.net/plug-ins/1.13.5/i18n/es-ES.json",
-                emptyTable: "No hay datos disponibles en la tabla",
-            },
-            columnDefs: [
-                {
-                    // Personalizamos las TD, sin condicionar
-                    targets: 2, // índice de columna
-                    createdCell: function (td, cellData, rowData, row, col) {
-                        $(td).html(`<span class="text-A">${cellData}</span>`);
-                    },
-                },
-                {
-                    targets: 5,
-                    createdCell: function (td, cellData, rowData, row, col) {
-                        $(td).html(`<span class="text-B">${cellData}</span>`);
-                    },
-                },
-            ],
+            // ... resto de la configuración ...
         });
 
-        setupTableListeners("tableEmpaque");
+        // Configurar eventos DIRECTAMENTE en la tabla DataTable
+        setupTableListenersDirect(table);
 
         $("#carousel-item1").removeClass("active");
         $("#carousel-item2").addClass("active");
@@ -180,6 +117,31 @@ async function cargarEmpaque(fecha) {
     return retorno;
 }
 
+// Nueva función para configurar eventos directamente
+function setupTableListenersDirect(tableInstance) {
+    // Usar el contenedor de DataTable para delegación
+    const tableNode = tableInstance.table().container();
+    
+    // Limpiar eventos anteriores
+    $(tableNode).off('.empqueEvents');
+    
+    // Configurar nuevos eventos con namespace
+    $(tableNode).on('click.empqueEvents', '.info-btn', async function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        const id = $(this).data('id');
+        console.log("Info btn clicked, ID:", id);
+        await infoEmpaque(id);
+    });
+    
+    $(tableNode).on('click.empqueEvents', '.pdf-btn', async function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        const id = $(this).data('id');
+        console.log("PDF btn clicked, ID:", id);
+        await generarPDF(id);
+    });
+}
 function setupTableListeners(tableId) {
     const table = document.getElementById(tableId);
     if (!table) return;
@@ -210,59 +172,114 @@ async function infoEmpaque(id) {
         if (!response.success) {
             alerts.show(response);
             throw new Error(
-                "Error al Obtener la informacion del Registro de Corte."
+                "Error al Obtener la informacion del Registro de Corte.",
             );
         }
 
-        console.log(response.data);
+        console.log("Datos recibidos:", response.data);
         const { proveedores, empaques } = response.data;
-        asignarInfo(empaques);
+
+        // CORRECCIÓN: empaques es un objeto, no un array
+        // Pásalo como array con un solo elemento
+        asignarInfo([empaques]); // ← ¡Aquí está el cambio!
+        // O si prefieres, modifica asignarInfo para aceptar un objeto
 
         $("#tablaProveedores").DataTable({
             data: proveedores,
             searching: false,
             destroy: true,
             columns: [
-                { data: "fecha" },
-                { data: "proveedor" },
-                { data: "tipo" },
-                { data: "canastas" },
-                { data: "cajas" },
-                { data: "rechazo" },
-                { data: "migas" },
+                {
+                    data: "fecha",
+                    render: function (data, type, row) {
+                        return data || "N/A";
+                    },
+                },
+                {
+                    data: "proveedor",
+                    render: function (data, type, row) {
+                        return data || "N/A";
+                    },
+                },
+                {
+                    data: "tipo",
+                    render: function (data, type, row) {
+                        return data || "N/A";
+                    },
+                },
+                {
+                    data: "canastas",
+                    render: function (data, type, row) {
+                        return data || "0";
+                    },
+                },
+                {
+                    data: "cajas",
+                    render: function (data, type, row) {
+                        return data || "0";
+                    },
+                },
+                {
+                    data: "rechazo",
+                    render: function (data, type, row) {
+                        return data ? data + " kg" : "0 kg";
+                    },
+                },
+                {
+                    data: "migas",
+                    render: function (data, type, row) {
+                        return data ? data + " kg" : "0 kg";
+                    },
+                },
             ],
 
             columnDefs: [
                 {
                     targets: 0,
                     createdCell: function (td, cellData, rowData, row, col) {
-                        $(td).html(`<span class="text-F">${cellData}</span>`);
+                        $(td).html(
+                            `<span class="text-F">${cellData || "N/A"}</span>`,
+                        );
                     },
                 },
                 {
                     targets: 2,
                     createdCell: function (td, cellData, rowData, row, col) {
                         $(td).html(
-                            `<span class="text-G">C</span><span class="text-A">${cellData}</span>`
+                            `<span class="text-G">${cellData || ""}</span>`,
                         );
                     },
                 },
                 {
                     targets: 3,
                     createdCell: function (td, cellData, rowData, row, col) {
-                        $(td).html(`<span class="text-I">${cellData}</span>`);
+                        $(td).html(
+                            `<span class="text-I">${cellData || "0"}</span>`,
+                        );
                     },
                 },
                 {
                     targets: 4,
                     createdCell: function (td, cellData, rowData, row, col) {
-                        $(td).html(`<span class="text-A">${cellData}</span>`);
+                        $(td).html(
+                            `<span class="text-A">${cellData || "0"}</span>`,
+                        );
                     },
                 },
                 {
                     targets: 5,
                     createdCell: function (td, cellData, rowData, row, col) {
-                        $(td).html(`<span class="text-B">${cellData}</span>`);
+                        $(td).html(
+                            `<span class="text-B">${cellData || "0"}</span>`,
+                        );
+                    },
+                },
+                {
+                    targets: 6,
+                    createdCell: function (td, cellData, rowData, row, col) {
+                        $(td).html(
+                            `<span class="text-C">${cellData || "0"}</span>`,
+                        );
                     },
                 },
             ],
@@ -272,8 +289,8 @@ async function infoEmpaque(id) {
                     return typeof i === "string"
                         ? parseFloat(i) || 0
                         : typeof i === "number"
-                        ? i
-                        : 0;
+                          ? i
+                          : 0;
                 };
 
                 var totalesPorTipo = {};
@@ -288,7 +305,7 @@ async function infoEmpaque(id) {
                 var texto = Object.keys(totalesPorTipo)
                     .map(
                         (tipo) =>
-                            `<span class="badge bg-light text-dark fw-semibold fs-6">${tipo}: ${totalesPorTipo[tipo]}</span>`
+                            `<span class="badge bg-light text-dark fw-semibold fs-6">${tipo}: ${totalesPorTipo[tipo]}</span>`,
                     )
                     .join(" ");
 

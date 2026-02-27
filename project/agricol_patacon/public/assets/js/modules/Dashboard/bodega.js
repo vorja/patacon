@@ -1,15 +1,75 @@
-import { AlertManager, ApiService } from "../../helpers/ApiUseManager.js";
+import { AlertManager, ApiService, Url } from "../../helpers/ApiUseManager.js";
 import notificationManager from "../../helpers/NotificacionesManger.js";
 import eventManager from "../../helpers/EventsManager.js";
-const API_BODEGA = new ApiService("http://localhost:3105/data/bodega");
+
+const API_BODEGA = new ApiService(Url + "/data/bodega");
+const API_PRODUCCION = new ApiService(Url + "/config/encargo");
+
 const alerts = new AlertManager();
 
 const token = document
     .querySelector('meta[name="jwt"]')
     .getAttribute("content");
 
+// Variable global para almacenar el ID de la orden
+let ordenGlobal = null;
+
+// Función para establecer la orden (obtener el ID)
+async function establecerOrden() {
+    try {
+        const response = await API_PRODUCCION.get("/obtener", {
+            headers: {
+                Authorization: "Bearer " + token,
+            },
+        });
+
+        if (!response.success) {
+            alerts.show(response);
+            return false;
+        }
+
+        const { data } = response;
+        console.log(data);
+        // Guardamos el ID en ordenGlobal
+        ordenGlobal = data.ordenProduccion.id;
+
+        console.log("ID de orden establecido:", ordenGlobal);
+
+        if (!ordenGlobal) {
+            console.error("No se pudo obtener el ID de la orden");
+            return false;
+        }
+
+        return true;
+    } catch (error) {
+        console.error("Error al establecer orden:", error);
+        alerts.show({
+            success: false,
+            message: "Error al obtener el ID de la orden",
+        });
+        return false;
+    }
+}
+
+
 async function init() {
     try {
+        // Primero establecer el ID de la orden
+        const ordenEstablecida = await establecerOrden();
+
+        if (!ordenEstablecida) {
+            Swal.fire({
+                icon: "error",
+                title: "Error",
+                text: "No se pudo obtener el ID de la orden. La aplicación no puede continuar.",
+            });
+            return;
+        }
+
+        // Mostrar el ID en consola para verificación
+        console.log("Inicializando aplicación con orden ID:", ordenGlobal);
+
+        // Luego cargar el resto de la aplicación
         await cargar();
         await cargarCajas();
         await cargarCajasLotes();
@@ -32,7 +92,7 @@ const listenerIds = {
 async function cargar() {
     let retorno = false;
     try {
-        const response = await API_BODEGA.get(`/obtener`, {
+        const response = await API_BODEGA.get(`/obtener/${ordenGlobal}`, {
             headers: {
                 Authorization: "Bearer " + token,
             },
@@ -72,39 +132,32 @@ async function cargar() {
                         return `<span class="badge bg-success rounded-pill fw-bold">${val}</span>`;
                     },
                 },
-
                 {
                     data: null,
                     render: (data, type, row) => `
- <div class="btn-group dropend">
-  <button type="button" class="btn btn-light  btn-sm dropdown-toggle text-center d-flex align-items-center justify-content-center"
-  data-bs-toggle="dropdown" aria-expanded="false" style="background-color: #fffefdef;  width: 42px; height: 42px; border-radius: 50%;">
-    <i class="fas fa-ellipsis-v"></i>
-  </button>
-  <ul class="dropdown-menu shadow-sm border-0 rounded-3 suggestions">
-  <li>
-      <a class="dropdown-item d-flex align-items-center info-btn" data-id="${
-          row.id_fritura
-      }" data-lote="${row.lote_produccion}" data-tipo="${
-                        row.tipo ? row.tipo : ""
-                    }">
-        <i class="fas fa-circle-info text-info me-2"></i> Información
-        </a>
-      </li>
-  </ul>
-</div>
-                `,
+                        <div class="btn-group dropend">
+                            <button type="button" class="btn btn-light btn-sm dropdown-toggle text-center d-flex align-items-center justify-content-center"
+                                data-bs-toggle="dropdown" aria-expanded="false" style="background-color: #fffefdef; width: 42px; height: 42px; border-radius: 50%;">
+                                <i class="fas fa-ellipsis-v"></i>
+                            </button>
+                            <ul class="dropdown-menu shadow-sm border-0 rounded-3 suggestions">
+                                <li>
+                                    <a class="dropdown-item d-flex align-items-center info-btn" data-id="${row.id_fritura}" data-lote="${row.lote_produccion}" data-tipo="${row.tipo ? row.tipo : ""}">
+                                        <i class="fas fa-circle-info text-info me-2"></i> Información
+                                    </a>
+                                </li>
+                            </ul>
+                        </div>
+                    `,
                 },
             ],
             initComplete: function () {
                 const api = this.api();
                 const $header = $(api.table().header());
-                // Recorremos columnas y conectamos la 2da fila (filtros)
                 api.columns().every(function (colIdx) {
                     const column = this;
                     const $thFilter = $header.find("tr:eq(1) th").eq(colIdx);
 
-                    // INPUT -> búsqueda libre (contains)
                     const $input = $thFilter.find("input");
                     if ($input.length) {
                         $input
@@ -117,26 +170,23 @@ async function cargar() {
                             });
                     }
 
-                    // SELECT -> opciones únicas + match exacto
                     const $select = $thFilter.find("select");
                     if ($select.length) {
-                        // llenar opciones únicas ordenadas
                         const uniques = column.data().unique().sort();
-                        // limpiar por si reinicializas
                         $select
                             .empty()
                             .append('<option value="">Todos</option>');
                         uniques.each(function (d) {
                             if (d !== null && d !== undefined && d !== "") {
                                 $select.append(
-                                    `<option value="${d}">${d}</option>`
+                                    `<option value="${d}">${d}</option>`,
                                 );
                             }
                         });
 
                         $select.off("change").on("change", function () {
                             const val = $.fn.dataTable.util.escapeRegex(
-                                $(this).val()
+                                $(this).val(),
                             );
                             column
                                 .search(val ? `^${val}$` : "", true, false)
@@ -190,7 +240,7 @@ async function info(lote, id, tipo) {
                 headers: {
                     Authorization: "Bearer " + token,
                 },
-            }
+            },
         );
 
         if (!response.success) {
@@ -224,10 +274,10 @@ async function info(lote, id, tipo) {
             ],
             columnDefs: [
                 {
-                    targets: 2, // índice de columna
+                    targets: 2,
                     createdCell: function (td, cellData, rowData, row, col) {
                         $(td).html(
-                            `<span class="text-G">C</span><span class="text-A">${cellData}</span>`
+                            `<span class="text-G">C</span><span class="text-A">${cellData}</span>`,
                         );
                     },
                 },
@@ -235,7 +285,7 @@ async function info(lote, id, tipo) {
                     targets: 3,
                     createdCell: function (td, cellData, rowData, row, col) {
                         $(td).html(
-                            `<span class="badge rounded-pill fw-bold"  style="background-color:#ec6704">${cellData}</span>`
+                            `<span class="badge rounded-pill fw-bold" style="background-color:#ec6704">${cellData}</span>`,
                         );
                     },
                 },
@@ -243,7 +293,7 @@ async function info(lote, id, tipo) {
                     targets: 4,
                     createdCell: function (td, cellData, rowData, row, col) {
                         $(td).html(
-                            `<span class="badge bg-dark rounded-pill fw-bold ">${cellData}</span>`
+                            `<span class="badge bg-dark rounded-pill fw-bold">${cellData}</span>`,
                         );
                     },
                 },
@@ -275,15 +325,14 @@ async function info(lote, id, tipo) {
                 { data: "lote_empaque" },
                 { data: "produccion" },
                 { data: "tipo" },
-
                 { data: "canastas" },
             ],
             columnDefs: [
                 {
-                    targets: 3, // índice de columna
+                    targets: 3,
                     createdCell: function (td, cellData, rowData, row, col) {
                         $(td).html(
-                            `<span class="text-G">C</span><span class="text-A">${cellData}</span>`
+                            `<span class="text-G">C</span><span class="text-A">${cellData}</span>`,
                         );
                     },
                 },
@@ -340,10 +389,10 @@ async function detalleCajas(produccion) {
             ],
             columnDefs: [
                 {
-                    targets: 1, // índice de columna
+                    targets: 1,
                     createdCell: function (td, cellData, rowData, row, col) {
                         $(td).html(
-                            `<span class="text-G">C</span><span class="text-A">${cellData}</span>`
+                            `<span class="text-G">C</span><span class="text-A">${cellData}</span>`,
                         );
                     },
                 },
@@ -354,8 +403,8 @@ async function detalleCajas(produccion) {
                     return typeof i === "string"
                         ? parseFloat(i) || 0
                         : typeof i === "number"
-                        ? i
-                        : 0;
+                          ? i
+                          : 0;
                 };
 
                 var totalesPorTipo = {};
@@ -370,7 +419,7 @@ async function detalleCajas(produccion) {
                 var texto = Object.keys(totalesPorTipo)
                     .map(
                         (tipo) =>
-                            `<span class="badge bg-light text-dark fw-semibold fs-6">${tipo}: ${totalesPorTipo[tipo]}</span>`
+                            `<span class="badge bg-light text-dark fw-semibold fs-6">${tipo}: ${totalesPorTipo[tipo]}</span>`,
                     )
                     .join(" ");
 
@@ -401,14 +450,12 @@ async function detalleCajas(produccion) {
 
 // Limpiadores
 export function cleanup() {
-    // Remover listeners específicos
     Object.values(listenerIds).forEach((id) => {
         if (id !== null) {
             eventManager.remove(id);
         }
     });
 
-    // Limpiar listeners de DataTables
     cleanupDataTables();
 }
 
@@ -425,6 +472,7 @@ function cleanupDataTables() {
         }
     });
 }
+
 export function reloadEventListeners() {
     cleanup();
     setupEventListeners();
@@ -438,7 +486,15 @@ const limpiarTable = () => {
 async function cargarCajas() {
     let retorno = false;
     try {
-        const response = await API_BODEGA.get(`/obtener-cajas`, {
+        // Verificar que tenemos el ID antes de usarlo
+        if (!ordenGlobal) {
+            console.error("No hay ID de orden disponible");
+            return false;
+        }
+
+        console.log("Cargando cajas para orden ID:", ordenGlobal);
+
+        const response = await API_BODEGA.get(`/obtener-cajas/${ordenGlobal}`, {
             headers: {
                 Authorization: "Bearer " + token,
             },
@@ -465,7 +521,6 @@ async function cargarCajas() {
 
         const datos = cajas[0];
 
-        // Recorrer las propiedades del objeto y asignarlas
         Object.keys(datos).forEach((key) => {
             const elemento = cardCajas[key];
             if (elemento) {
@@ -473,7 +528,7 @@ async function cargarCajas() {
             }
         });
     } catch (error) {
-        console.error(error);
+        console.error("Error en cargarCajas:", error);
     }
 
     return retorno;
@@ -482,11 +537,23 @@ async function cargarCajas() {
 async function cargarCajasLotes() {
     let retorno = false;
     try {
-        const response = await API_BODEGA.get(`/obtener-cajas-lotes`, {
-            headers: {
-                Authorization: "Bearer " + token,
+        // Verificar que tenemos el ID antes de usarlo
+        if (!ordenGlobal) {
+            console.error("No hay ID de orden disponible");
+            return false;
+        }
+
+        console.log("Cargando cajas lotes para orden ID:", ordenGlobal);
+
+        const response = await API_BODEGA.get(
+            `/obtener-cajas-lotes/${ordenGlobal}`,
+            {
+                headers: {
+                    Authorization: "Bearer " + token,
+                },
             },
-        });
+        );
+
         if (!response.success) {
             retorno = false;
             alerts.show(response);
@@ -516,37 +583,38 @@ async function cargarCajasLotes() {
                 {
                     data: null,
                     render: (data, type, row) => `
-                         <div class="btn-group dropup">
-  <button type="button" class="btn btn-light btn-sm dropdown-toggle  d-flex align-items-center justify-content-center"   data-bs-toggle="dropdown"
-   aria-expanded="false" style="background-color: #f7f7f7ff; width: 42px; height: 42px; border-radius: 50%;">
-    <i class="fas fa-ellipsis-v"></i>
-  </button>
-  <ul class="dropdown-menu shadow-sm border-0 rounded-3">
-    <li>
-      <a class="dropdown-item d-flex align-items-center info-btn" data-lote="${row.fecha_produccion}">
-        <i class="fas fa-circle-info text-info me-2"></i> información
-      </a>
-    </li>
-  </ul>
-</div>
-                `,
+                        <div class="btn-group dropup">
+                            <button type="button" class="btn btn-light btn-sm dropdown-toggle d-flex align-items-center justify-content-center"   
+                                data-bs-toggle="dropdown" aria-expanded="false" 
+                                style="background-color: #f7f7f7ff; width: 42px; height: 42px; border-radius: 50%;">
+                                <i class="fas fa-ellipsis-v"></i>
+                            </button>
+                            <ul class="dropdown-menu shadow-sm border-0 rounded-3">
+                                <li>
+                                    <a class="dropdown-item d-flex align-items-center info-btn" data-lote="${row.fecha_produccion}">
+                                        <i class="fas fa-circle-info text-info me-2"></i> información
+                                    </a>
+                                </li>
+                            </ul>
+                        </div>
+                    `,
                 },
             ],
             columnDefs: [
                 {
-                    targets: 1, // índice de columna
+                    targets: 1,
                     createdCell: function (td, cellData, rowData, row, col) {
                         $(td).html(`<span class="text-G">${cellData}</span>`);
                     },
                 },
                 {
-                    targets: 2, // índice de columna
+                    targets: 2,
                     createdCell: function (td, cellData, rowData, row, col) {
                         $(td).html(`<span class="text-G">${cellData}</span>`);
                     },
                 },
                 {
-                    targets: 3, // índice de columna
+                    targets: 3,
                     createdCell: function (td, cellData, rowData, row, col) {
                         $(td).html(`<span class="text-G">${cellData}</span>`);
                     },
@@ -585,12 +653,10 @@ async function cargarCajasLotes() {
             initComplete: function () {
                 const api = this.api();
                 const $header = $(api.table().header());
-                // Recorremos columnas y conectamos la 2da fila (filtros)
                 api.columns().every(function (colIdx) {
                     const column = this;
                     const $thFilter = $header.find("tr:eq(1) th").eq(colIdx);
 
-                    // INPUT -> búsqueda libre (contains)
                     const $input = $thFilter.find("input");
                     if ($input.length) {
                         $input
@@ -603,26 +669,23 @@ async function cargarCajasLotes() {
                             });
                     }
 
-                    // SELECT -> opciones únicas + match exacto
                     const $select = $thFilter.find("select");
                     if ($select.length) {
-                        // llenar opciones únicas ordenadas
                         const uniques = column.data().unique().sort();
-                        // limpiar por si reinicializas
                         $select
                             .empty()
                             .append('<option value="">Todos</option>');
                         uniques.each(function (d) {
                             if (d !== null && d !== undefined && d !== "") {
                                 $select.append(
-                                    `<option value="${d}">${d}</option>`
+                                    `<option value="${d}">${d}</option>`,
                                 );
                             }
                         });
 
                         $select.off("change").on("change", function () {
                             const val = $.fn.dataTable.util.escapeRegex(
-                                $(this).val()
+                                $(this).val(),
                             );
                             column
                                 .search(val ? `^${val}$` : "", true, false)
@@ -646,16 +709,18 @@ async function cargarCajasLotes() {
                 emptyTable: "No hay datos disponibles en la tabla",
             },
         });
+
         $(`#tableInventario tbody`).on("click", ".info-btn", function () {
             detalleCajas(this.dataset.lote);
         });
     } catch (error) {
-        console.error(error);
+        console.error("Error en cargarCajasLotes:", error);
     }
 
     return retorno;
 }
 
+// Inicialización
 if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", init);
 } else {

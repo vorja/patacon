@@ -140,8 +140,8 @@
                     <label for="Observaciones" class="form-label">
                         <i class="fa-solid fa-circle-info me-2" style="color:#ec6704;"></i>Observaciones
                     </label>
-                    <textarea class="form-control shadow-sm" id="Observaciones"
-                        placeholder="Ej | Mal estados de muchos.. " rows="8"></textarea>
+                    <textarea class="form-control shadow-sm" id="Observaciones" placeholder="Ej | Mal estados de muchos.. "
+                        rows="8"></textarea>
                 </div>
             </div>
         </div>

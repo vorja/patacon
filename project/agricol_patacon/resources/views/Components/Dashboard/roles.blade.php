@@ -13,7 +13,7 @@
             <div class="carousel-inner" role="listbox">
                 <div class="carousel-item active">
                     <div class="content d-flex justify-content gap-3 ">
-                        <div class="col-2 mt-2 mb-3">
+                        <div class="col-4 mt-2 mb-3">
                             <div class="card shadow-sm border-0 rounded-4">
                                 <div class="card-body">
                                     <div class="d-flex justify-content-between align-items-center">

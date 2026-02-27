@@ -55,6 +55,10 @@ const RegistroAreaFritura = sequelize.define(
       type: DataTypes.FLOAT,
       allowNull: false,
     },
+    bajadas_fritura: {
+      type: DataTypes.FLOAT,
+      allowNull: true,
+    },
     materia_fritura: {
       type: DataTypes.FLOAT,
       allowNull: false,
@@ -92,7 +96,7 @@ const RegistroAreaFritura = sequelize.define(
   {
     tableName: "registro_area_fritura",
     timestamps: false,
-  }
+  },
 );
 
 RegistroAreaFritura.belongsTo(Responsable, {

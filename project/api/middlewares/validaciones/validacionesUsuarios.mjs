@@ -2,7 +2,7 @@ import { celebrate, Joi, Segments } from "celebrate";
 
 export const validarUsuario = celebrate({
   [Segments.BODY]: Joi.object().keys({
-    nombre: Joi.string().min(3).required(),
+    user_name: Joi.string().min(3).required(),
     password: Joi.string()
       .pattern(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[A-Za-z\d@_\-*!\.]{8,}$/)
       .required(),

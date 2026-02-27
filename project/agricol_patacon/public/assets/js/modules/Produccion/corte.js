@@ -1,15 +1,24 @@
-import { ApiService, AlertManager } from "../../helpers/ApiUseManager.js";
+import {
+    ApiService,
+    AlertManager,
+    Url,
+    fechaHoy,
+} from "../../helpers/ApiUseManager.js";
 
-const apiCorte = new ApiService("http://localhost:3105/data/corte");
-const apiProveedores = new ApiService("http://localhost:3105/data/recepcion");
-const apiEncargo = new ApiService("http://localhost:3105/config/encargo");
-const apiEmpleados = new ApiService("http://localhost:3105/data/empleados");
-const apiReferencias = new ApiService("http://localhost:3105/data/referencias");
+const apiCorte = new ApiService(Url + "/data/corte");
+const apiProveedores = new ApiService(Url + "/data/recepcion");
+const apiEncargo = new ApiService(Url + "/config/encargo");
+const apiEmpleados = new ApiService(Url + "/data/empleados");
+const apiReferencias = new ApiService(Url + "/data/referencias");
+
 const alerts = new AlertManager();
 
 const token = document
     .querySelector('meta[name="jwt"]')
     .getAttribute("content");
+
+// Variable global para almacenar los datos de proveedores
+let datosRecepcionesCorte = [];
 
 const init = async () => {
     await encargo();
@@ -23,29 +32,221 @@ const init = async () => {
         .addEventListener("click", storeData);
 };
 
-function obtenerFechaHoraLocal() {
-    const fecha = new Date();
-    return `${fecha.getUTCFullYear()}-${String(
-        fecha.getUTCMonth() + 1
-    ).padStart(2, "0")}-${String(fecha.getUTCDate()).padStart(2, "0")}`;
-}
-
 document.getElementById("nombreProveedor").addEventListener("input", (e) => {
     const selectedOption = document.querySelector(
-        `option[value="${e.target.value}"]`
+        `option[value="${e.target.value}"]`,
     );
 
     if (!selectedOption) {
         limpiarInputs();
         return;
     }
-    console.log(selectedOption.getAttribute("data-id"));
 
     document.getElementById("dropdownTipos").removeAttribute("disabled");
     document.getElementById("rechazoProveedor").removeAttribute("disabled");
     document
         .getElementById("rechazoProveedor")
         .setAttribute("data-id", selectedOption.getAttribute("data-id"));
+
+    // Guardar también el ID de recepción
+    document
+        .getElementById("rechazoProveedor")
+        .setAttribute(
+            "data-recepcion-id",
+            selectedOption.getAttribute("data-recepcion-id"),
+        );
+
+    // Cargar datos del proveedor si ya tiene registros en la tabla
+    cargarDatosProveedorDeTabla(
+        selectedOption.getAttribute("data-id"),
+        selectedOption.getAttribute("data-recepcion-id"),
+    );
+});
+
+// Reemplaza la función cargarDatosProveedorDeTabla con esta versión mejorada:
+
+function cargarDatosProveedorDeTabla(proveedorId, recepcionId) {
+    // Buscar en la tabla SOLO los registros de esta recepción específica
+    const tableRows = document.querySelectorAll("#InfoCorte tbody tr");
+    const cortesRecepcion = [];
+    
+    console.log("Buscando cortes para recepción ID:", recepcionId); // Para debugging
+
+    tableRows.forEach((row, index) => {
+        if (index === 0) return; // Saltar el encabezado si existe
+        
+        const cells = row.cells;
+        if (cells.length < 5) return;
+
+        const idProveedorCelda = cells[3]?.textContent;
+        const idRecepcionCelda = cells[4]?.textContent;
+
+        // Comparar con el ID de recepción específico (NO solo con proveedorId)
+        if (idRecepcionCelda === recepcionId) {
+            cortesRecepcion.push({
+                tipo: cells[1].textContent,
+                materia: parseFloat(cells[2].textContent || 0),
+                idProveedor: idProveedorCelda,
+                idRecepcion: idRecepcionCelda
+            });
+        }
+    });
+
+    console.log("Cortes encontrados para esta recepción:", cortesRecepcion); // Para debugging
+
+    // Si esta recepción ya tiene registros en la tabla
+    if (cortesRecepcion.length > 0) {
+        // Buscar el rechazo de esta recepción específica
+        const rechazoElement = document.querySelector(
+            `span.rechazoProv[data-recepcion-id="${recepcionId}"]`
+        );
+        
+        if (rechazoElement) {
+            const rechazoValue = rechazoElement.textContent
+                .replace(" Kg", "")
+                .trim();
+            document.getElementById("rechazoProveedor").value = rechazoValue;
+            
+            // También actualizar el atributo data-rechazo del input hidden
+            const inputHidden = document.querySelector(
+                `input.nombreProveedor[data-recepcion="${recepcionId}"]`
+            );
+            if (inputHidden) {
+                inputHidden.setAttribute("data-rechazo", rechazoValue);
+            }
+        }
+
+        // Limpiar contenedor de tipos
+        const container = document.getElementById("contenedorTipos");
+        container.innerHTML = "";
+
+        // Agrupar por tipo (en caso de que haya múltiples registros del mismo tipo)
+        const cortesPorTipo = {};
+        cortesRecepcion.forEach((corte) => {
+            if (!cortesPorTipo[corte.tipo]) {
+                cortesPorTipo[corte.tipo] = 0;
+            }
+            cortesPorTipo[corte.tipo] += parseFloat(corte.materia);
+        });
+
+        // Marcar checkboxes y crear inputs con valores existentes
+        const checkboxes = document.querySelectorAll(
+            '.dropdown-menu input[type="checkbox"]'
+        );
+
+        // Primero, desmarcar todos los checkboxes
+        checkboxes.forEach((cb) => {
+            cb.checked = false;
+        });
+
+        // Luego marcar solo los que corresponden
+        Object.keys(cortesPorTipo).forEach((tipo) => {
+            const checkbox = Array.from(checkboxes).find(
+                (cb) => cb.value === tipo
+            );
+            
+            if (checkbox) {
+                checkbox.checked = true;
+                
+                // Crear el input para este tipo
+                const uniqueId = `${proveedorId}_${recepcionId}_${tipo.replace(/\s+/g, "_")}`;
+                
+                const div = document.createElement("div");
+                div.className = "mb-3 col-6 col-md-3 mt-3";
+                div.id = `col_${uniqueId}`;
+
+                const h4 = document.createElement("h5");
+                h4.className = "text-dark fw-bold fw-semibold border border-light";
+                h4.textContent = `Corte Tipo - ${tipo}`;
+
+                const input = document.createElement("input");
+                input.type = "number";
+                input.className = "form-control rounded shadow-sm text-center fs-6 text-dark numeric";
+                input.placeholder = `Cantidad Kg: ${tipo}`;
+                input.id = `input_${uniqueId}`;
+                input.value = cortesPorTipo[tipo];
+
+                input.setAttribute("name", "cantidad[]");
+                input.setAttribute("data-tipo", tipo);
+                input.setAttribute(
+                    "data-proveedor",
+                    document.getElementById("nombreProveedor").value
+                );
+                input.setAttribute("data-idProveedor", proveedorId);
+                input.setAttribute("data-idRecepcion", recepcionId);
+                input.setAttribute("data-unique-id", uniqueId);
+                input.setAttribute("min", "0");
+                input.setAttribute("step", "0.1");
+
+                div.appendChild(h4);
+                div.appendChild(input);
+                container.appendChild(div);
+            }
+        });
+
+        // Ocultar alerta de información
+        document.getElementById("alertInfo").setAttribute("hidden", true);
+        
+        console.log("Datos cargados exitosamente para la recepción:", recepcionId);
+    } else {
+        // No hay registros previos, establecer rechazo en 0
+        document.getElementById("rechazoProveedor").value = "0";
+        
+        // Limpiar contenedor de tipos
+        document.getElementById("contenedorTipos").innerHTML = "";
+        
+        // Desmarcar todos los checkboxes
+        const checkboxes = document.querySelectorAll(
+            '.dropdown-menu input[type="checkbox"]'
+        );
+        checkboxes.forEach((cb) => {
+            cb.checked = false;
+        });
+        
+        // Mostrar alerta de información
+        document.getElementById("alertInfo").removeAttribute("hidden");
+    }
+}
+
+// También mejora el event listener del input del proveedor:
+
+document.getElementById("nombreProveedor").addEventListener("input", (e) => {
+    const selectedOption = document.querySelector(
+        `option[value="${e.target.value}"]`,
+    );
+
+    if (!selectedOption) {
+        limpiarInputs();
+        return;
+    }
+
+    const proveedorId = selectedOption.getAttribute("data-id");
+    const recepcionId = selectedOption.getAttribute("data-recepcion-id");
+    const lote = selectedOption.getAttribute("data-lote");
+    const materia = selectedOption.getAttribute("data-materia");
+
+    // Guardar datos en los atributos del input
+    e.target.setAttribute("data-proveedor-id", proveedorId);
+    e.target.setAttribute("data-recepcion-id", recepcionId);
+    e.target.setAttribute("data-lote", lote);
+    e.target.setAttribute("data-materia", materia);
+
+    document.getElementById("dropdownTipos").removeAttribute("disabled");
+    document.getElementById("rechazoProveedor").removeAttribute("disabled");
+    
+    // Guardar IDs en el input de rechazo
+    document
+        .getElementById("rechazoProveedor")
+        .setAttribute("data-id", proveedorId);
+    document
+        .getElementById("rechazoProveedor")
+        .setAttribute("data-recepcion-id", recepcionId);
+
+    // Guardar ID del proveedor en el campo oculto
+    document.getElementById("id_proveedor").value = proveedorId;
+
+    // Cargar datos del proveedor si ya tiene registros en la tabla
+    cargarDatosProveedorDeTabla(proveedorId, recepcionId);
 });
 
 function limpiarInputs() {
@@ -58,7 +259,7 @@ function limpiarInputs() {
     document.querySelector(`#contenedorTipos`).innerHTML = "";
 
     const checkboxes = document.querySelectorAll(
-        '.dropdown-menu input[type="checkbox"]'
+        '.dropdown-menu input[type="checkbox"]',
     );
 
     checkboxes.forEach((cb) => {
@@ -68,7 +269,7 @@ function limpiarInputs() {
 
 const eventCheck = async () => {
     const checkboxes = document.querySelectorAll(
-        '.dropdown-menu input[type="checkbox"]'
+        '.dropdown-menu input[type="checkbox"]',
     );
 
     checkboxes.forEach((cb) => {
@@ -77,14 +278,31 @@ const eventCheck = async () => {
             const container = document.getElementById("contenedorTipos");
             const proveedor = document.getElementById("nombreProveedor");
             const id_proveedor = document.getElementById("id_proveedor");
-            const id = e.target.value.replace(/\s+/g, "_");
+
+            // Obtener el ID de recepción del atributo data del rechazoProveedor
+            const rechazoInput = document.getElementById("rechazoProveedor");
+            const idRecepcion = rechazoInput
+                ? rechazoInput.getAttribute("data-recepcion-id")
+                : "";
+
+            // ID único combinando proveedor + recepción + tipo
+            const uniqueId = `${id_proveedor?.value || ""}_${idRecepcion || ""}_${e.target.value.replace(/\s+/g, "_")}`;
 
             if (!container || !proveedor || !id_proveedor) return;
 
             if (e.target.checked) {
+                // Verificar si ya existe un input para esta combinación
+                const existingInput = document.getElementById(
+                    `input_${uniqueId}`,
+                );
+                if (existingInput) {
+                    e.target.checked = true;
+                    return;
+                }
+
                 const div = document.createElement("div");
                 div.className = "mb-3 col-6 col-md-3 mt-3";
-                div.id = `col_${id}`;
+                div.id = `col_${uniqueId}`;
 
                 const h4 = document.createElement("h5");
                 h4.className =
@@ -97,18 +315,20 @@ const eventCheck = async () => {
                     "form-control rounded shadow-sm text-center fs-6 text-dark";
                 input.classList.add("numeric");
                 input.placeholder = `Cantidad Kg: ${e.target.value}`;
-                input.id = `input_${id}`;
+                input.id = `input_${uniqueId}`;
 
                 input.setAttribute("name", "cantidad[]");
                 input.setAttribute("data-tipo", `${e.target.value}`);
                 input.setAttribute(
                     "data-proveedor",
-                    `${proveedor.value.trim()}`
+                    `${proveedor.value.trim()}`,
                 );
                 input.setAttribute(
                     "data-idProveedor",
-                    `${id_proveedor.value.trim()}`
+                    `${id_proveedor.value.trim()}`,
                 );
+                input.setAttribute("data-idRecepcion", idRecepcion);
+                input.setAttribute("data-unique-id", uniqueId);
                 input.setAttribute("min", "0");
                 input.setAttribute("step", "0.1");
 
@@ -119,7 +339,7 @@ const eventCheck = async () => {
                     .getElementById(`alertInfo`)
                     .setAttribute("hidden", true);
             } else {
-                const existing = document.getElementById(`col_${id}`);
+                const existing = document.getElementById(`col_${uniqueId}`);
                 if (existing) existing.remove();
                 if (container.children.length === 0) {
                     alertInfo.removeAttribute("hidden");
@@ -129,11 +349,19 @@ const eventCheck = async () => {
     });
 };
 
-function obtenerCortes(id) {
+function obtenerCortes() {
     const contenedor = document.querySelector("#contenedorTipos");
     const inputs = contenedor.querySelectorAll('input[name="cantidad[]"]');
     const datos = [];
+
     if (inputs.length == 0) return false;
+
+    // Obtener el ID de recepción actual
+    const rechazoInput = document.getElementById("rechazoProveedor");
+    const idRecepcionActual = rechazoInput
+        ? rechazoInput.getAttribute("data-recepcion-id")
+        : "";
+
     inputs.forEach((input) => {
         const valor = input?.value.trim();
         if (!valor) {
@@ -146,32 +374,43 @@ function obtenerCortes(id) {
 
         datos.push({
             proveedor: input.getAttribute("data-proveedor"),
-            materia: parseInt(valor),
+            materia: parseFloat(valor),
             tipo: input.getAttribute("data-tipo"),
-            id: input.getAttribute("data-IdProveedor"),
+            id: input.getAttribute("data-idProveedor"),
+            idRecepcion:
+                input.getAttribute("data-idRecepcion") || idRecepcionActual,
         });
     });
 
-    const materiaRecp = Number(
-        document.getElementById(`${id}`).getAttribute("data-materia")
+    // Buscar la materia de recepción correcta en datosRecepcionesCorte
+    const proveedorId = document.getElementById("id_proveedor").value;
+    const recepcionId = idRecepcionActual;
+
+    const recepcionData = datosRecepcionesCorte.find(
+        (r) =>
+            r.id_proveedor.toString() === proveedorId &&
+            r.id.toString() === recepcionId,
     );
+
+    const materiaRecp = recepcionData ? parseFloat(recepcionData.cantidad) : 0;
 
     const totalCorte = datos.reduce(
         (acc, c) => acc + Number(c.materia || 0),
-        0
+        0,
     );
 
     if (totalCorte > materiaRecp) {
         Swal.fire({
             icon: "warning",
             title: "Atención",
-            html: `Está sobrepansado la cantidad recepcionada :<p class="badge text-danger fw-bold fs-5">${materiaRecp} Kg</p> `,
-            timer: 1800,
+            html: `Está sobrepasando la cantidad recepcionada :<p class="badge text-danger fw-bold fs-5">${materiaRecp} Kg</p> `,
+            timer: 1200,
             showConfirmButton: false,
         });
 
         return false;
     }
+
     return datos;
 }
 
@@ -190,7 +429,7 @@ function fillDatalist(datalist, data) {
 function handleInput(datalist, inputId, idFieldId) {
     document.getElementById(inputId).addEventListener("input", (e) => {
         const selectedOption = datalist.querySelector(
-            `option[value="${e.target.value}"]`
+            `option[value="${e.target.value}"]`,
         );
         if (selectedOption) {
             document.getElementById(idFieldId).value =
@@ -219,19 +458,17 @@ function validarCamposForm(campos) {
 async function storeData() {
     const result = await Swal.fire({
         title: "¿Estás seguro?",
-        text: "¡Se asignar está información al Proveedor sin vuelta atras!",
+        text: "¡Se actualizará la información del proveedor!",
         icon: "warning",
         showCancelButton: true,
         confirmButtonColor: "#3085d6",
         cancelButtonColor: "#d33",
-        confirmButtonText: "Sí, Asignar",
+        confirmButtonText: "Sí, Actualizar",
         cancelButtonText: "Cancelar",
     });
 
-    // Si cancela, no hacer nada
     if (!result.isConfirmed) return;
 
-    // Mostrar loading
     Swal.fire({
         title: "Procesando Información...",
         allowOutsideClick: false,
@@ -242,7 +479,23 @@ async function storeData() {
     });
 
     const inputId = document.getElementById("id_proveedor");
-    const datos = obtenerCortes(inputId.value.trim());
+    const rechazoInput = document.getElementById("rechazoProveedor");
+    const idRecepcion = rechazoInput
+        ? rechazoInput.getAttribute("data-recepcion-id")
+        : "";
+
+    const datos = obtenerCortes();
+
+    if (!datos) {
+        await Swal.close();
+        await Swal.fire({
+            icon: "error",
+            title: "Error",
+            text: "Error al obtener los datos de cortes.",
+        });
+        return;
+    }
+
     const proveedorId = inputId.value.trim();
     const rechazo = document.getElementById("rechazoProveedor");
     const proveedorName = document.getElementById("nombreProveedor");
@@ -254,7 +507,6 @@ async function storeData() {
             title: "Error",
             text: "Por favor, ingrese todos los datos requeridos en el Formulario de Cortes.",
         });
-
         return;
     }
 
@@ -263,10 +515,9 @@ async function storeData() {
         await Swal.fire({
             icon: "error",
             title: "Error",
-            text: "El campo no puede estar vacio.",
+            text: "El campo de rechazo no puede estar vacío.",
         });
-
-        return false;
+        return;
     }
 
     if (datos.length == 0 || !datos) {
@@ -274,42 +525,51 @@ async function storeData() {
         await Swal.fire({
             icon: "error",
             title: "Error",
-            text: "Por favor, Ingrese la Informacion de Cortes del Proveedor.",
-        });
-
-        return false;
-    }
-
-    const inputHidden = document.querySelector(
-        `input.nombreProveedor[data-id="${proveedorId}"]`
-    );
-
-    document.querySelector(
-        `span.rechazoProv[data-id="${proveedorId}"]`
-    ).textContent = `${rechazo.value.trim()} Kg`;
-
-    inputHidden.setAttribute("data-rechazo", rechazo.value.trim());
-
-    const tableRows = document.querySelectorAll("#InfoCorte tbody tr");
-    let existe = true;
-
-    tableRows.forEach((row, index) => {
-        if (index === 0) return;
-        const cells = row.cells;
-        if (cells.length < 4) return;
-        if (cells[3].textContent === proveedorId) existe = false;
-    });
-
-    if (!existe) {
-        Swal.close();
-        await Swal.fire({
-            icon: "warning",
-            title: "Atención",
-            text: "El Proveedor ya fue seleccinado, elija otro disponible.",
+            text: "Por favor, Ingrese la Información de Cortes del Proveedor.",
         });
         return;
     }
 
+    // Buscar el input hidden correcto usando el ID de recepción
+    const inputHidden = document.querySelector(
+        `input.nombreProveedor[data-recepcion="${idRecepcion}"]`,
+    );
+
+    // Actualizar rechazo en la card del proveedor usando el ID de recepción
+    const rechazoSpan = document.querySelector(
+        `span.rechazoProv[data-recepcion-id="${idRecepcion}"]`,
+    );
+
+    if (rechazoSpan) {
+        rechazoSpan.textContent = `${rechazo.value.trim()} Kg`;
+    }
+
+    if (inputHidden) {
+        inputHidden.setAttribute("data-rechazo", rechazo.value.trim());
+    }
+
+    // Eliminar filas existentes para esta recepción específica
+    const tableRows = document.querySelectorAll("#InfoCorte tbody tr");
+    const rowsToRemove = [];
+
+    tableRows.forEach((row, index) => {
+        if (index === 0) return;
+        const cells = row.cells;
+        if (cells.length >= 5) {
+            const rowProveedorId = cells[3]?.textContent;
+            const rowRecepcionId = cells[4]?.textContent;
+            if (
+                rowProveedorId === proveedorId &&
+                rowRecepcionId === idRecepcion
+            ) {
+                rowsToRemove.push(row);
+            }
+        }
+    });
+
+    rowsToRemove.forEach((row) => row.remove());
+
+    // Agregar los nuevos datos a la tabla
     datos.forEach((item) => {
         const newRow = document.createElement("tr");
 
@@ -329,11 +589,15 @@ async function storeData() {
         proveedorIdCell.style.display = "none";
         proveedorIdCell.textContent = item.id;
 
+        const recepcionIdCell = document.createElement("td");
+        recepcionIdCell.style.display = "none";
+        recepcionIdCell.textContent = idRecepcion;
+
         newRow.appendChild(CellProveedor);
         newRow.appendChild(CellTipo);
         newRow.appendChild(CellCantidad);
-        newRow.appendChild(CellCantidad);
         newRow.appendChild(proveedorIdCell);
+        newRow.appendChild(recepcionIdCell);
 
         document.querySelector("#InfoCorte tbody").appendChild(newRow);
     });
@@ -341,14 +605,14 @@ async function storeData() {
     Swal.close();
     await Swal.fire({
         icon: "success",
-        title: "Información Asignada",
-        html: `Se ha asignado la información del proveedor :<p class="badge text-danger fw-bold fs-5">${proveedorName.value}</p> `,
-        timer: 1700,
+        title: "Información Actualizada",
+        html: `Se ha actualizado la información del proveedor :<p class="badge text-danger fw-bold fs-5">${proveedorName.value}</p><p class="badge bg-info">Recepción ID: ${idRecepcion}</p>`,
+        timer: 1500,
         showConfirmButton: false,
     });
-    const alertInfo = document
-        .getElementById("alertInfo")
-        .removeAttribute("hidden");
+
+    const alertInfo = document.getElementById("alertInfo");
+    alertInfo.removeAttribute("hidden");
 
     updateRechazo();
     limpiarInputs();
@@ -377,14 +641,29 @@ function obtenerRecepciones() {
 }
 
 const enviarRegistroCorteButton = document.getElementById(
-    "enviarRegistroCorteButton"
+    "enviarRegistroCorteButton",
 );
 
-enviarRegistroCorteButton.addEventListener("click", (e) => {
+// Función para obtener TODOS los IDs de recepciones
+function obtenerTodasLasRecepciones() {
+    const todosIds = [];
+
+    datosRecepcionesCorte.forEach((proveedor) => {
+        if (proveedor.ids && Array.isArray(proveedor.ids)) {
+            todosIds.push(...proveedor.ids);
+        } else {
+            todosIds.push(proveedor.id);
+        }
+    });
+
+    return todosIds;
+}
+
+enviarRegistroCorteButton.addEventListener("click", async (e) => {
     e.preventDefault();
     Swal.fire({
         title: "¿Estás seguro?",
-        text: "¡Se enviara la información sin vuelta atrás!",
+        text: "¡Se enviará la información sin vuelta atrás!",
         icon: "warning",
         showCancelButton: true,
         confirmButtonColor: "#658d07ff",
@@ -392,29 +671,43 @@ enviarRegistroCorteButton.addEventListener("click", (e) => {
         confirmButtonText: "Sí, Enviar información.",
     }).then(async (result) => {
         if (result.isConfirmed) {
-            const camposObligatorios = [
-                "rechazo",
-                "responsablenombre",
-                "responsableid",
-                "idEncargo",
-            ];
 
-            // Validar que todos los campos de la tabla estén llenos
-            if (!validarCamposForm(camposObligatorios)) {
-                Swal.fire({
-                    title: "¡Error!",
-                    text: "Por favor, llene los campos Obligatorios antes de guardar el registro.",
-                    icon: "error",
-                    showConfirmButton: true,
-                    allowEscapeKey: false,
-                    allowOutsideClick: false,
-                });
-                return;
-            }
-            const dataRecepciones = obtenerRecepciones();
+             const camposObligatorios = [
+                 "rechazo",
+                 "responsablenombre",
+                 "responsableid",
+                 "idEncargo",
+             ];
+
+             if (!validarCamposForm(camposObligatorios)) {
+                 Swal.fire({
+                     title: "¡Error!",
+                     text: "Por favor, llene los campos Obligatorios antes de guardar el registro.",
+                     icon: "error",
+                     showConfirmButton: true,
+                     allowEscapeKey: false,
+                     allowOutsideClick: false,
+                 });
+                 return;
+             }
+
+             const tableRows = document.querySelectorAll("#InfoCorte tbody tr");
+             if (tableRows.length <= 1) {
+                 Swal.fire({
+                     title: "¡Error!",
+                     text: "No hay registros de cortes en la tabla. Por favor, agregue cortes antes de enviar.",
+                     icon: "error",
+                     showConfirmButton: true,
+                 });
+                 return;
+             }
+
+            const dataRecepciones = obtenerTodasLasRecepciones();
 
             const principalData = {
-                fecha: obtenerFechaHoraLocal(),
+                fecha: fechaHoy,
+                inicio_corte: document.getElementById("inicio_corte").value,
+                fin_corte: document.getElementById("fin_corte").value,
                 orden: document.getElementById("idEncargo").value,
                 id_responsable: document.getElementById("responsableid").value,
                 rechazo_corte: document.getElementById("rechazo").value,
@@ -423,98 +716,116 @@ enviarRegistroCorteButton.addEventListener("click", (e) => {
                     "No hay Observaciones",
                 recepciones: dataRecepciones,
                 detallesCortes: [],
+                proveedores: [],
             };
 
-            const tableRows = document.querySelectorAll("#InfoCorte tbody tr");
-
+            // ===== 1. CONSTRUIR DETALLES DE CORTE CON LOTE =====
             const detalles = [];
+            const proveedoresMap = {};
 
             tableRows.forEach((row, index) => {
                 if (index === 0) return;
                 const cells = row.cells;
+                if (cells.length < 5) return;
 
-                if (cells.length < 4) return;
-                const detalle = {};
-                detalle["proveedor_nombre"] = cells[0].textContent;
-                detalle["tipo"] = cells[1].textContent;
-                detalle["materia"] = cells[2].textContent;
-                detalle["id_proveedor"] = cells[3].textContent;
+                const proveedorNombre = cells[0].textContent;
+                const tipo = cells[1].textContent;
+                const materia = parseFloat(cells[2].textContent || 0);
+                const idProveedor = cells[3].textContent;
+                const idRecepcion = cells[4].textContent;
 
-                detalles.push(detalle);
-            });
+                // Buscar datos de la recepción
+                const recepcionData = datosRecepcionesCorte.find(
+                    (r) => r.id.toString() === idRecepcion,
+                );
 
-            const agruProveedores = detalles.reduce((acc, item) => {
-                const proveedor = item.proveedor_nombre;
-                if (!acc[proveedor]) {
-                    acc[proveedor] = {
-                        proveedor,
-                        id_proveedor: item.id_proveedor,
+                if (!recepcionData) {
+                    console.error(
+                        `No se encontró recepción ID: ${idRecepcion}`,
+                    );
+                    return;
+                }
+
+                // === PARA DETALLE_CORTE (con lote) ===
+                detalles.push({
+                    id_proveedor: parseInt(idProveedor),
+                    tipo: tipo,
+                    materia: parseFloat(materia.toFixed(2)),
+                    lote: recepcionData.lote, // ← LOTE SIEMPRE PRESENTE
+                });
+
+                // === PARA PROVEEDOR_HAS_CORTE (agrupado por recepción) ===
+                const key = `${idProveedor}_${recepcionData.lote}`;
+
+                if (!proveedoresMap[key]) {
+                    proveedoresMap[key] = {
+                        id_proveedor: parseInt(idProveedor),
+                        lote_proveedor: recepcionData.lote,
+                        fecha_produccion: fechaHoy,
                         totalMateria: 0,
+                        rechazo: 0,
+                        cantidadRecepcion: recepcionData.cantidad,
+                        idRecepcion: idRecepcion,
                     };
                 }
-                acc[proveedor].totalMateria +=
-                    parseFloat(item.materia ?? 0) || 0;
-                return acc;
-            }, {});
 
-            const inputs = document.querySelectorAll(".nombreProveedor");
-
-            const materiaRec = [];
-            inputs.forEach((input) => {
-                materiaRec.push({
-                    proveedor: input?.getAttribute("data-proveedor"),
-                    materRecp: parseInt(input?.getAttribute("data-materia")),
-                    rechazo: parseFloat(input?.getAttribute("data-rechazo")),
-                    lote_proveedor: input?.getAttribute("data-lote"),
-                });
+                proveedoresMap[key].totalMateria += materia;
             });
 
-            const rendimientoProv = Object.entries(agruProveedores).map(
-                ([proveedor_nombre, data]) => {
-                    const proveedorData = materiaRec.find(
-                        (c) => c.proveedor === proveedor_nombre
-                    );
+            // Obtener rechazos de los inputs
+            const inputs = document.querySelectorAll(".nombreProveedor");
+            const rechazosMap = {};
+            inputs.forEach((input) => {
+                const recepcionId = input.getAttribute("data-recepcion");
+                const rechazo = parseFloat(
+                    input.getAttribute("data-rechazo") || 0,
+                );
+                if (recepcionId) {
+                    rechazosMap[recepcionId] = rechazo;
+                }
+            });
 
+            // Construir array de proveedores
+            const proveedoresArray = Object.values(proveedoresMap).map(
+                (data) => {
                     const rendimiento =
                         data.totalMateria > 0
-                            ? (data.totalMateria / proveedorData.materRecp) *
-                              100
+                            ? (data.totalMateria / data.cantidadRecepcion) * 100
                             : 0;
-                    /* 
-                    console.log(proveedorData);
- */
+
                     return {
-                        fecha_produccion: obtenerFechaHoraLocal(),
+                        fecha_produccion: fechaHoy,
                         id_proveedor: data.id_proveedor,
                         totalMateria: Number(data.totalMateria.toFixed(2)),
-                        rechazo: Number(proveedorData.rechazo.toFixed(1)),
-                        lote_proveedor: proveedorData.lote_proveedor,
-                        rendimiento: Number(rendimiento.toFixed(1)),
+                        rechazo: rechazosMap[data.idRecepcion] || 0,
+                        lote_proveedor: data.lote_proveedor,
+                        rendimiento: Number(rendimiento.toFixed(2)),
                     };
-                }
+                },
             );
 
-            console.log(rendimientoProv);
-
+            // Calcular totales
             const totalMateria = detalles.reduce(
-                (acc, d) => acc + Number(d.materia || 0),
-                0
+                (acc, d) => acc + d.materia,
+                0,
             );
-
-            principalData.detallesCortes = detalles.filter((detalle) =>
-                Object.values(detalle).some((value) => value !== "")
-            );
-
             const rendimiento = rendimientoPlatano(totalMateria);
 
+            // Asignar al objeto principal
+            principalData.detallesCortes = detalles;
+            principalData.proveedores = proveedoresArray;
             principalData.rendimiento_materia = parseFloat(rendimiento);
-            principalData.total_materia = parseFloat(totalMateria);
-            principalData.proveedores = rendimientoProv;
+            principalData.total_materia = parseFloat(totalMateria.toFixed(2));
 
-            const cleanedData = removeEmptyFields(principalData);
-            console.log(cleanedData);
+            console.log("Datos a enviar:", {
+                fecha: principalData.fecha,
+                totalDetalles: principalData.detallesCortes.length,
+                totalProveedores: principalData.proveedores.length,
+                muestraDetalle: principalData.detallesCortes[0],
+                muestraProveedor: principalData.proveedores[0],
+            });
 
-            const response = await apiCorte.post("/crear", cleanedData, {
+            const response = await apiCorte.post("/crear", principalData, {
                 headers: {
                     "Content-Type": "application/json",
                     Authorization: "Bearer " + token,
@@ -525,24 +836,22 @@ enviarRegistroCorteButton.addEventListener("click", (e) => {
                 alerts.show(response);
                 setTimeout(() => {
                     window.location.replace("/tablet/home");
-                }, 3000);
+                }, 2000);
             } else {
                 alerts.show(response);
                 setTimeout(() => {
                     window.location.reload();
-                }, 3000);
+                }, 2000);
             }
         }
     });
 });
-
 // Calculamos el rendimiento de la materia total procesada.
 const rendimientoPlatano = (materPelada) => {
     const inputs = document.querySelectorAll(".nombreProveedor");
     let materRecp = 0;
     let rendimientoGeneral = 0;
     inputs.forEach((input) => {
-        // Sumamos el total de la materia de Recepcion pesada
         materRecp += parseInt(input?.getAttribute("data-materia"));
     });
 
@@ -554,11 +863,10 @@ const updateRechazo = () => {
     const inputs = document.querySelectorAll(".nombreProveedor");
     let materRechazo = 0;
     inputs.forEach((input) => {
-        // Sumamos el total de la materia de Recepcion pesada
         materRechazo += parseFloat(input?.getAttribute("data-rechazo") || 0);
     });
-    console.log("materia: ", materRechazo);
-    document.querySelector("#rechazo").value = materRechazo;
+
+    document.querySelector("#rechazo").value = materRechazo.toFixed(2);
 };
 
 function removeEmptyFields(obj) {
@@ -600,7 +908,7 @@ const encargo = async () => {
         alerts.show(response);
         setTimeout(() => {
             window.location.replace("/tablet/home");
-        }, 3000);
+        }, 2000);
     }
     const { configuracion } = response.data;
     document.getElementById("idEncargo").value = configuracion[0].orden_actual;
@@ -612,7 +920,6 @@ const rendereizarProveedores = (proveedores) => {
     if (!contenedor) return;
     contenedor.innerHTML = "";
 
-    // Card principal
     const card = document.createElement("div");
     card.className = "card mb-3 border-0 shadow-sm";
 
@@ -620,16 +927,13 @@ const rendereizarProveedores = (proveedores) => {
     cardHead.className = "card mb-3 shadow-sm fw-bold text-white";
     cardHead.style.backgroundColor = "#ec6704";
 
-    // Collapse container
     const collapseDiv = document.createElement("div");
     collapseDiv.className = "collapse";
     collapseDiv.id = "collapseProveedores";
 
-    // Card body
     const cardBody = document.createElement("div");
     cardBody.className = "card-body";
 
-    // Botón para cerrar
     const closeButtonContainer = document.createElement("div");
     closeButtonContainer.className = "text-end mb-2";
     closeButtonContainer.innerHTML = `
@@ -641,17 +945,15 @@ const rendereizarProveedores = (proveedores) => {
         </button>
     `;
 
-    // Contenedor principal
     const proveedoresContainer = document.createElement("div");
     proveedoresContainer.className = "row g-3";
 
     cardBody.appendChild(closeButtonContainer);
 
     document.querySelector("#cantidadProv").innerHTML = `${proveedores.length}`;
-    // Iterar sobre cada proveedor
+
     proveedores.forEach((item, index) => {
         const conteo = index + 1;
-        // Columna para cada proveedor
         const col = document.createElement("div");
         col.className = "col-12 col-md-6 col-lg-4";
 
@@ -659,6 +961,7 @@ const rendereizarProveedores = (proveedores) => {
        <div class="card shadow-sm rounded-3"> 
        <div class="card-header fw-bold text-white" style="background-color: #ec6704"> PROVEEDOR
          <span class="badge rounded-pill fw-bold" style="background-color: #6b7713"> #${conteo} </span>
+         <small class="text-white-50 d-block">Lote: ${item.lote} - ID Rec: ${item.id}</small>
        </div>
        <div class="card-body">
        <div class="container-fluid">
@@ -696,9 +999,7 @@ const rendereizarProveedores = (proveedores) => {
                   <i class="fa-solid fa-ban text-danger me-2" style="width: 20px; text-align: center;"></i>
                   <span class="fw-semibold">Rechazo</span>
                 </div>
-                <span class="fw-semibold text-truncate rechazoProv" data-id="${
-                    item.id_proveedor
-                }" id="">${0} Kg</span>
+                <span class="fw-semibold text-truncate rechazoProv" data-recepcion-id="${item.id}">${0} Kg</span>
               </div>
             </li>  
              
@@ -708,20 +1009,21 @@ const rendereizarProveedores = (proveedores) => {
     </div>
   </div>
 </div>
-        <input type="hidden" class="nombreProveedor form-control form-control-sm" value="${
-            item.proveedor
-        }" data-materia="${
-            item.cantidad
-        }" data-rechazo="0" id="proveedor_${conteo}"
-        data-proveedor="${item.proveedor}" readonly data-id="${
-            item.id_proveedor
-        }" data-recepcion="${item.id}" data-lote="${item.lote}">
-        <input type="hidden" value="${item.id_proveedor}" id="${
-            item.id_proveedor
-        }" name="id_proveedor[]" data-materia="${
-            item.cantidad
-        }" data-rechazo="0" data-recepcion="${item.id}">
-</div>
+        <input type="hidden" class="nombreProveedor form-control form-control-sm" value="${item.proveedor}" 
+               data-materia="${item.cantidad}" 
+               data-rechazo="0" 
+               id="proveedor_${conteo}_${item.id}"
+               data-proveedor="${item.proveedor}" 
+               readonly 
+               data-id="${item.id_proveedor}" 
+               data-recepcion="${item.id}" 
+               data-lote="${item.lote}">
+        <input type="hidden" value="${item.id_proveedor}" 
+               id="proveedor_id_${item.id}" 
+               name="id_proveedor[]" 
+               data-materia="${item.cantidad}" 
+               data-rechazo="0" 
+               data-recepcion="${item.id}">
         `;
         proveedoresContainer.appendChild(col);
     });
@@ -735,11 +1037,6 @@ const rendereizarProveedores = (proveedores) => {
 };
 
 async function cargarProveedores() {
-    let fecha = new Date();
-    const fechaHoy = `${fecha.getFullYear()}-${
-        fecha.getMonth() + 1
-    }-${fecha.getDate()}`;
-
     let ide = document.getElementById("idEncargo").value;
     const response = await apiProveedores.get(
         `/obtener-proveedor-recepcion-Day/${fechaHoy}/${ide}/Corte`,
@@ -747,24 +1044,31 @@ async function cargarProveedores() {
             headers: {
                 Authorization: "Bearer " + token,
             },
-        }
+        },
     );
     if (!response.success) {
         alerts.show(response);
         setTimeout(() => {
             window.location.replace("/tablet/home");
-        }, 3000);
+        }, 2000);
     }
     const { proveedores } = response.data;
+
+    datosRecepcionesCorte = proveedores;
+
     rendereizarProveedores(proveedores);
 
     const proveedoreslist = document.getElementById("proveedoreslist");
     proveedoreslist.innerHTML = "";
     proveedores.forEach((item) => {
         const option = document.createElement("option");
-        option.value = `${item.proveedor}`;
+        option.value = `${item.proveedor} - Lote: ${item.lote} (ID: ${item.id})`;
         option.dataset.id = item.id_proveedor;
+        option.dataset.recepcionId = item.id;
+        option.dataset.lote = item.lote;
         option.dataset.rechazo = 0;
+        option.dataset.materia = item.cantidad;
+        option.textContent = `Fecha Procesar: ${item.fecha_procesamiento} - Lote: ${item.lote}`;
         proveedoreslist.appendChild(option);
     });
 
@@ -772,12 +1076,35 @@ async function cargarProveedores() {
     const idProveedorInput = document.getElementById("id_proveedor");
 
     nombreProveedorInput.addEventListener("input", () => {
-        const selectedOption = nombreProveedorInput.list.querySelector(
-            `option[value="${nombreProveedorInput.value}"]`
-        );
+        const selectedOption = Array.from(
+            nombreProveedorInput.list.options,
+        ).find((option) => option.value === nombreProveedorInput.value);
 
         if (selectedOption) {
             idProveedorInput.value = selectedOption.getAttribute("data-id");
+
+            // Guardar el ID de recepción en el input de rechazo
+            const rechazoInput = document.getElementById("rechazoProveedor");
+            if (rechazoInput) {
+                rechazoInput.setAttribute(
+                    "data-recepcion-id",
+                    selectedOption.getAttribute("data-recepcion-id"),
+                );
+            }
+
+            // Guardar datos adicionales en el input del proveedor
+            nombreProveedorInput.setAttribute(
+                "data-recepcion-id",
+                selectedOption.getAttribute("data-recepcion-id"),
+            );
+            nombreProveedorInput.setAttribute(
+                "data-lote",
+                selectedOption.getAttribute("data-lote"),
+            );
+            nombreProveedorInput.setAttribute(
+                "data-materia",
+                selectedOption.getAttribute("data-materia"),
+            );
         }
     });
 }
@@ -812,7 +1139,9 @@ const referenciasList = (referencias, id) => {
     });
 };
 
-const socket = new WebSocket("ws://localhost:3105");
+let x = Url.replace("http:", "");
+
+const socket = new WebSocket("ws:" + x);
 
 socket.onmessage = (event) => {
     const msg = JSON.parse(event.data);

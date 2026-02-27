@@ -10,11 +10,14 @@ import DetalleEmpaque from "../models/detalleEmpaque.mjs";
 import RegistroAreaCorte from "../models/registroAreaCorte.mjs";
 
 // ============================================
+// VARIABLE GLOBAL - AÑO ACTUAL
+// ============================================
+const añoActual = new Date().getFullYear();
+
+// ============================================
 // 1. CONTENEDORES POR MES (Año Actual)
 // ============================================
 export const obtenerContenedoresPorMes = async () => {
-  const añoActual = new Date().getFullYear();
-
   const contenedores = await Produccion.findAll({
     attributes: [
       [fn("MONTH", col("fecha_creacion")), "mes"],
@@ -64,8 +67,6 @@ export const obtenerContenedoresPorMes = async () => {
 // 2. MATERIA PRIMA POR PROVEEDOR (Año Actual)
 // ============================================
 export const obtenerMateriaPorProveedor = async () => {
-  const añoActual = new Date().getFullYear();
-
   // Obtener todas las producciones del año
   const producciones = await Produccion.findAll({
     attributes: ["id"],
@@ -126,8 +127,6 @@ export const obtenerMateriaPorProveedor = async () => {
 // 3. CAJAS POR CONTENEDOR Y TIPO (Año Actual)
 // ============================================
 export const obtenerCajasPorContenedor = async () => {
-  const añoActual = new Date().getFullYear();
-
   const producciones = await Produccion.findAll({
     attributes: ["id", "lote_produccion"],
     where: {
@@ -165,7 +164,7 @@ export const obtenerCajasPorContenedor = async () => {
             raw: true,
           });
           return detalle;
-        })
+        }),
       );
 
       // Aplanar el array de arrays
@@ -194,7 +193,7 @@ export const obtenerCajasPorContenedor = async () => {
         name: prod.lote_produccion,
         children: children,
       };
-    })
+    }),
   );
 
   return {
@@ -207,8 +206,6 @@ export const obtenerCajasPorContenedor = async () => {
 // 4. RECHAZO POR CONTENEDOR Y ÁREA (Año Actual)
 // ============================================
 export const obtenerRechazoPorContenedor = async () => {
-  const añoActual = new Date().getFullYear();
-
   const producciones = await Produccion.findAll({
     attributes: ["id", "lote_produccion"],
     where: {
@@ -270,7 +267,7 @@ export const obtenerRechazoPorContenedor = async () => {
           { name: "Empaque", value: Number(empaque[0]?.total || 0) },
         ],
       };
-    })
+    }),
   );
 
   return {
@@ -282,8 +279,6 @@ export const obtenerRechazoPorContenedor = async () => {
 // 5. FUNCIÓN GENERAL PARA OBTENER MATERIA PRIMA
 // ============================================
 export const obtenerMateriaPrima = async () => {
-  const añoActual = new Date().getFullYear();
-
   const lista = await Produccion.findAll({
     attributes: ["id", "lote_produccion"],
     where: {
@@ -307,9 +302,9 @@ export const obtenerMateriaPrima = async () => {
         ...orden.get({ plain: true }),
         total: detalle ?? 0,
       };
-    })
+    }),
   );
-  const info = await obtenerCantidades(añoActual);
+  const info = await obtenerCantidades();
 
   console.log(info);
 
@@ -348,50 +343,23 @@ export const obtenerDashboardAnual = async () => {
   }
 };
 
-// ============================================
-// 6. VERSIÓN CON AÑO PERSONALIZADO
-// ============================================
-/* export const obtenerDashboardPorAño = async (año = null) => {
-  const añoConsulta = año || new Date().getFullYear();
-
-  // Adaptar cada función para recibir el año como parámetro
-  const contenedores = await obtenerContenedoresPorMesAño(añoConsulta);
-  const proveedores = await obtenerMateriaPorProveedorAño(añoConsulta);
-  const cajas = await obtenerCajasPorContenedorAño(añoConsulta);
-  const rechazos = await obtenerRechazoPorContenedorAño(añoConsulta);
-
-  return {
-    año: añoConsulta,
-    contenedoresData: contenedores,
-    proveedorData: proveedores,
-    cajasData: cajas,
-    hierarchicalData: rechazos,
-  };
-}; */
-
-/* // Funciones auxiliares con año como parámetro
-const obtenerContenedoresPorMesAño = async (año) => {
-  // Misma lógica pero usando el parámetro 'año'
-  // ... (código similar a obtenerContenedoresPorMes)
-}; */
-
-const obtenerCantidades = async (fecha) => {
+const obtenerCantidades = async () => {
   const producciones = await RegistroAreaFritura.count({
     where: {
-      [Op.and]: [where(fn("YEAR", col("fecha")), fecha)],
+      [Op.and]: [where(fn("YEAR", col("fecha")), añoActual)],
     },
   });
 
   const cajas = await RegistroAreaEmpaque.sum("total_cajas", {
     where: {
-      [Op.and]: [where(fn("YEAR", col("fecha_empaque")), fecha)],
+      [Op.and]: [where(fn("YEAR", col("fecha_empaque")), añoActual)],
     },
   });
 
   const contenedores = await Produccion.count({
     where: {
       [Op.and]: [
-        where(fn("YEAR", col("fecha_creacion")), fecha),
+        where(fn("YEAR", col("fecha_creacion")), añoActual),
         { estado: 1 },
       ],
     },

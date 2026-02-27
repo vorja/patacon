@@ -174,10 +174,11 @@
     <table class="tabla">
         <thead>
             <tr>
-                <th colspan="3" class="T">INFORMACIÓN DE CORTES</th>
+                <th colspan="4" class="T">INFORMACIÓN DE CORTES</th>
             </tr>
             <tr>
                 <th class="text-center N">Proveedor</th>
+                <th class="text-center N">Lote</th>
                 <th class="text-center N">Tipo (A,B,C,D)</th>
                 <th class="text-center N">Cantidad</th>
             </tr>
@@ -186,6 +187,7 @@
             @foreach($proveedores as $item)
                 <tr>
                     <td>{{ $item['Proveedor'] }}</td>
+                    <td>{{ $item['Lote'] }}</td>
                     <td>{{ $item['Tipo'] }}</td>
                     <td>{{ $item['Cantidad'] }} kg</td>
                 </tr>

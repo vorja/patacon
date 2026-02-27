@@ -1,10 +1,9 @@
-import { AlertManager, ApiService } from "../../helpers/ApiUseManager.js";
+import { AlertManager, ApiService, Url } from "../../helpers/ApiUseManager.js";
 import eventManager from "../../helpers/EventsManager.js";
 import notificationManager from "../../helpers/NotificacionesManger.js";
 
-const API_PROVEEDOR = new ApiService(
-    "http://localhost:3105/data/proveedorInsumos"
-);
+const API_PROVEEDOR = new ApiService(Url + "/data/proveedorInsumos");
+
 const alerts = new AlertManager();
 
 const token = document
@@ -173,7 +172,7 @@ async function cargarProveedores() {
                 var api = this.api();
                 let numRegistros = api.rows({ filter: "applied" }).count();
                 let tableWrapper = $(api.table().container());
-                if (numRegistros <= 15) {
+                if (numRegistros <= 11) {
                     tableWrapper.find(".dataTables_paginate").hide();
                 } else {
                     tableWrapper.find(".dataTables_paginate").show();
@@ -446,9 +445,10 @@ async function infoProveedor(id) {
 
         document.querySelector("#telefono_info").value = data.movil;
 
-        $("#ModalInfoproveedores").modal("show");
+        $("#ModalInfoProveedores").modal("show");
+        console.log(data)
     } catch (error) {
-        console.error(error);
+        console.log(error);
         Swal.fire({
             icon: "error",
             title: "Error",

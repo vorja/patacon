@@ -29,7 +29,9 @@ router.use(verificarACL);
 
 router.post("/crear", verificarToken, validarProduccion, createProduccion);
 router.post("/asig-cajas", verificarToken, asigCajasProduccion);
+
 router.get("/obtener", verificarToken, getProduccion);
+
 router.get("/obtener-producciones", verificarToken, getProduccionesProcesos); // Obtener todas las producciones.
 router.get(
   "/obtener-performance/:orden",

@@ -37,6 +37,7 @@ export const create = async (data) => {
         fecha_recepcion: registroRecepcion.fecha_procedimiento,
         lote_proveedor: registroRecepcion.lote,
         producto: registroRecepcion.variedad,
+        id_proveedor: registroRecepcion.id_proveedor,
       },
       defaults: {
         fecha_recepcion: registroRecepcion.fecha_procedimiento,

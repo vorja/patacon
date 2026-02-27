@@ -224,7 +224,7 @@
                                 </tr>
                                 <tr>
                                     <th scope="col" class="text-center">
-                                        <select class="form-selecet form-select-sm"></select>
+                                        <select class="form-selecet form-select-sm" id="filtroRol"></select>
                                     </th>
                                 </tr>
                             </thead>
@@ -239,7 +239,7 @@
     </div>
 </div>
 
-{{-- Modal de Creaccion --}}
+{{-- Modal de Creación/Edición --}}
 <div class="modal fade" id="ModalUsuarios" tabindex="-1" aria-labelledby="createModalLabel">
     <div class="modal-dialog modal-lg modal-dialog-scrollable">
         <div class="modal-content shadow-lg border-0"
@@ -247,6 +247,8 @@
             <div class="modal-header justify-content-center"
                 style="background-color: #1e1e2f; border-radius: 1rem 1rem 0 0; color:#fff">
                 <h5 class="modal-title fw-bold" id="modalFrituraLabel">REGISTRAR USUARIO</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
+                    aria-label="Close"></button>
             </div>
             <div class="modal-body">
                 <form id="formUsuario" class="row g-3 mt-1">
@@ -261,27 +263,42 @@
 
                     <div class="mb-3 col-md-6">
                         <label for="nombre" class="form-label">Nombre</label>
-                        <input type="text" class="form-control  rounded shadow-sm" name="nombre"
-                            id="nombre" required placeholder="Nombre de Usuario..">
+                        <input type="text" class="form-control rounded shadow-sm" name="nombre" id="nombre" required
+                            placeholder="Nombre de Usuario..">
                     </div>
                     <div class="mb-3 col-md-6">
                         <label for="roles" class="form-label">Rol</label>
-                        <Select class="roles form-select rounded  bg-white shadow-sm text-dark" id="id_rol" required>
+                        <Select class="roles form-select rounded bg-white shadow-sm text-dark" id="selectRol" required>
                             <option selected disabled>...</option>
                         </Select>
-
                     </div>
 
-                    <div class="mb-3 col-md-6">
-                        <label for="password" class="form-label">Password.</label>
-                        <input type="password" name="password" id="password"
-                            class="form-control  rounded shadow-sm " required
-                            placeholder="Contraseña del usuario..">
-
+                    <!-- Contraseña con opción para editar -->
+                    <div class="mb-3 col-md-12">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <label for="password" class="form-label mb-0">Contraseña</label>
+                            <button type="button" id="btnCambiarPassword" class="btn btn-sm btn-outline-warning d-none">
+                                <i class="fas fa-edit me-1"></i> Cambiar Contraseña
+                            </button>
+                        </div>
+                        <div class="input-group">
+                            <input type="password" name="password" id="password" class="form-control rounded shadow-sm"
+                                required placeholder="Ingrese la contraseña..">
+                            <button class="btn btn-outline-secondary" type="button" id="togglePassword">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                        </div>
+                        <small class="text-muted mt-1 d-block">
+                            <i class="fas fa-info-circle"></i> La contraseña debe tener al menos 8 caracteres,
+                            1 mayúscula, 1 minúscula y 1 número.
+                        </small>
                     </div>
 
                     <div class="col-12 text-end">
-                        <button type="submit" class="btn text-white"  style="background-color: #5dbb1f">Registrar</button>
+                        <button type="button" class="btn btn-secondary me-2" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn text-white" style="background-color: #5dbb1f">
+                            <span id="btnSubmitText">Registrar</span>
+                        </button>
                     </div>
                     <div class="col-12 text-center mt-4 ">
                         <small>Aceptas nuestras Políticas de Privacidad y Términos de Servicio al enviar este
@@ -289,7 +306,39 @@
                     </div>
                 </form>
             </div>
+        </div>
+    </div>
+</div>
 
+{{-- Modal de Información --}}
+<div class="modal fade" id="ModalInfoUsuario" tabindex="-1" aria-labelledby="infoModalLabel">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content shadow-lg border-0" style="border-radius: 1rem;">
+            <div class="modal-header justify-content-center text-white"
+                style="background-color: #449fdb; border-radius: 1rem 1rem 0 0;">
+                <h5 class="modal-title fw-bold" id="infoModalLabel">INFORMACIÓN DEL USUARIO</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
+                    aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <h6 class="text-muted mb-1"><i class="fas fa-user me-2"></i>Nombre</h6>
+                        <p class="fw-bold" id="info-nombre">-</p>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <h6 class="text-muted mb-1"><i class="fas fa-user-tag me-2"></i>Rol</h6>
+                        <p class="fw-bold" id="info-rol">-</p>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <h6 class="text-muted mb-1"><i class="fas fa-user-shield me-2"></i>Estado</h6>
+                        <span class="badge bg-success" id="info-estado">Activo</span>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer border-0">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+            </div>
         </div>
     </div>
 </div>

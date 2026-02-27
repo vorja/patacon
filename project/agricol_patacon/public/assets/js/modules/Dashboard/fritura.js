@@ -1,16 +1,18 @@
-import { AlertManager, ApiService } from "../../helpers/ApiUseManager.js";
+import { AlertManager, ApiService, Url } from "../../helpers/ApiUseManager.js";
 import eventManager from "../../helpers/EventsManager.js";
 import notificationManager from "../../helpers/NotificacionesManger.js";
 
 // Inicializar
-const API_FRITURA = new ApiService("http://localhost:3105/data/fritura");
-const API_PRODUCCION = new ApiService("http://localhost:3105/data/produccion");
+const API_FRITURA = new ApiService(Url + "/data/fritura");
+const API_PRODUCCION = new ApiService(Url + "/data/produccion");
+
 const alerts = new AlertManager();
 
 const elementFritura = {
     btnPDF: document.getElementById("btnPDF"),
     inputSearch: document.getElementById("inputSearch"),
 };
+
 const token = document
     .querySelector('meta[name="jwt"]')
     .getAttribute("content");
@@ -18,6 +20,8 @@ const token = document
 const listenerIds = {
     inputSearch: null,
     btnPDF: null,
+    // Agregamos un objeto para los delegados globales
+    tableDelegates: null,
 };
 
 async function init() {
@@ -34,49 +38,86 @@ async function init() {
 }
 
 function setupEventListeners() {
+    // Botón PDF principal (si existe)
     if (elementFritura.btnPDF) {
         listenerIds.btnPDF = eventManager.add(
             elementFritura.btnPDF,
             "click",
-            generarPDF
+            generarPDF,
         );
     }
 
+    // Input de búsqueda con debounce
     if (elementFritura.inputSearch) {
         listenerIds.inputSearch = eventManager.addDebounced(
             elementFritura.inputSearch,
             "input",
             buscarOrdenes,
-            300
+            300,
         );
     } else {
         console.warn("Input de búsqueda de contenedores no encontrado");
     }
 
-    //
-    const suggestionsContainer = document.getElementById("suggestions");
-    if (suggestionsContainer) {
-        eventManager.delegate(
-            suggestionsContainer,
-            "click",
-            ".suggestion-item",
-            handleSuggestionClick
-        );
+    // Configurar delegados globales UNA SOLA VEZ
+    // Esto evitará que se acumulen con cada recarga de tabla
+    if (!listenerIds.tableDelegates) {
+        listenerIds.tableDelegates = {
+            infoBtn: eventManager.delegate(
+                document.body, // Usar body para capturar eventos de toda la página
+                "click",
+                ".info-btn",
+                handleInfoButtonClick,
+            ),
+            pdfBtn: eventManager.delegate(
+                document.body,
+                "click",
+                ".pdf-btn",
+                handlePdfButtonClick,
+            ),
+            suggestions: eventManager.delegate(
+                document.body,
+                "click",
+                ".suggestion-item",
+                handleSuggestionClick,
+            ),
+        };
     }
 
     console.log(" Event Listeners configurados:", eventManager.getStats());
 }
 
+// Manejadores de eventos globales
+async function handleInfoButtonClick(e) {
+    const id = this.dataset.id;
+    if (id) {
+        await cargarDetalleFritura(id);
+    }
+}
+
+async function handlePdfButtonClick(e) {
+    const id = this.dataset.id;
+    if (id) {
+        await generarPDF(id);
+    }
+}
+
 async function handleSuggestionClick(e) {
-    const suggestionItem = e.target;
+    const suggestionItem = e.target.closest(".suggestion-item");
+    if (!suggestionItem) return;
+
     const ordenId = suggestionItem.dataset.id;
     const ordenLote = suggestionItem.textContent;
 
     elementFritura.inputSearch.value = ordenLote;
     elementFritura.inputSearch.setAttribute("data-id", ordenId);
     await cargarLostesFritura(ordenId);
+
     // Limpiar sugerencias
-    document.getElementById("suggestions").innerHTML = "";
+    const suggestionsContainer = document.getElementById("suggestions");
+    if (suggestionsContainer) {
+        suggestionsContainer.innerHTML = "";
+    }
 }
 
 function renderSuggestions(resultados, container, tipo) {
@@ -84,25 +125,14 @@ function renderSuggestions(resultados, container, tipo) {
     const maxResults = 10;
     const limited = resultados.slice(0, maxResults);
 
-    if (tipo === "C") {
-        limited.forEach((orden) => {
-            const div = document.createElement("div");
-            div.classList.add("suggestion-item");
-            div.textContent = orden.Lote;
-            div.dataset.id = orden.id;
-            div.dataset.tipo = tipo;
-            fragment.appendChild(div);
-        });
-    } else {
-        limited.forEach((orden) => {
-            const div = document.createElement("div");
-            div.classList.add("suggestion-item");
-            div.textContent = orden.Lote;
-            div.dataset.id = orden.id;
-            div.dataset.tipo = tipo;
-            fragment.appendChild(div);
-        });
-    }
+    limited.forEach((orden) => {
+        const div = document.createElement("div");
+        div.classList.add("suggestion-item");
+        div.textContent = orden.Lote;
+        div.dataset.id = orden.id;
+        div.dataset.tipo = tipo;
+        fragment.appendChild(div);
+    });
 
     container.innerHTML = "";
     container.appendChild(fragment);
@@ -120,9 +150,22 @@ function renderSuggestions(resultados, container, tipo) {
 
 export function cleanup() {
     // Remover listeners específicos
-    Object.values(listenerIds).forEach((id) => {
-        if (id !== null) {
+    Object.keys(listenerIds).forEach((key) => {
+        const id = listenerIds[key];
+
+        if (id !== null && key !== "tableDelegates") {
             eventManager.remove(id);
+            listenerIds[key] = null;
+        }
+
+        // Si es el objeto de delegados, remover cada listener interno
+        if (key === "tableDelegates" && id) {
+            Object.values(id).forEach((innerId) => {
+                if (innerId !== null) {
+                    eventManager.remove(innerId);
+                }
+            });
+            listenerIds[key] = null;
         }
     });
 
@@ -131,7 +174,13 @@ export function cleanup() {
 }
 
 function cleanupDataTables() {
-    ["#tablaInfoLotes", "#tablaInfoFritura"].forEach((tableId) => {
+    [
+        "#tablaInfoLotes",
+        "#tablaInfoFritura",
+        "#tableVariablesProceso",
+        "#tableLotes",
+        "#tableVariablesProveedor",
+    ].forEach((tableId) => {
         if ($.fn.DataTable.isDataTable(tableId)) {
             $(tableId).DataTable().destroy();
             $(tableId).empty();
@@ -152,14 +201,14 @@ async function cargarLostesFritura(id_produccion) {
                 headers: {
                     Authorization: "Bearer " + token,
                 },
-            }
+            },
         );
         if (!res.success) {
             alerts.show(res);
             return false;
         }
-        const { conteoLotes, lostesFritura } = res.data;
-        cargarInfoLotes(lostesFritura);
+        const { conteoLotes, lotesFritura } = res.data;
+        cargarInfoLotes(lotesFritura);
         asignarConteo(conteoLotes);
     } catch (error) {
         Swal.fire({
@@ -223,34 +272,6 @@ async function cargarDetalleFritura(id) {
             columnDefs: [],
         });
 
-        /*    $("#tableVariablesProceso").DataTable({
-            data: proceso,
-            searching: false,
-            destroy: true,
-            pageLength: 6,
-            columns: [
-                { data: "proveedor" },
-                { data: "tiempo" },
-                { data: "temperatura" },
-            ],
-            drawCallback: function () {
-                let api = this.api();
-                let numRegistros = api.rows({ filter: "applied" }).count();
-                let tableWrapper = $(api.table().container());
-                if (numRegistros <= 6) {
-                    tableWrapper.find(".dataTables_paginate").hide();
-                } else {
-                    tableWrapper.find(".dataTables_paginate").show();
-                }
-            },
-            dom: "Bfrtip",
-            responsive: true,
-            language: {
-                url: "https://cdn.datatables.net/plug-ins/1.13.5/i18n/es-ES.json",
-            },
-            columnDefs: [],
-        });
- */
         $("#tableLotes").DataTable({
             data: detalles,
             searching: false,
@@ -290,8 +311,6 @@ async function cargarDetalleFritura(id) {
             dom: "Bfrtip",
             responsive: true,
             columns: [
-                /* 
-                { data: "proveedor" }, */
                 { data: "lote_produccion" },
                 { data: "lote_proveedor" },
                 { data: "tipo" },
@@ -300,12 +319,12 @@ async function cargarDetalleFritura(id) {
             ],
             columnDefs: [
                 {
-                    targets: 4, // índice de columna
+                    targets: 4,
                     createdCell: function (td, cellData, rowData, row, col) {
                         $(td).html(
                             `${new Intl.NumberFormat("es-CL").format(
-                                cellData.toFixed(1)
-                            )} `
+                                cellData.toFixed(1),
+                            )} `,
                         );
                     },
                 },
@@ -314,7 +333,7 @@ async function cargarDetalleFritura(id) {
                 let api = this.api();
                 let numRegistros = api.rows({ filter: "applied" }).count();
                 let tableWrapper = $(api.table().container());
-                if (numRegistros <= 6) {
+                if (numRegistros <= 5) {
                     tableWrapper.find(".dataTables_paginate").hide();
                 } else {
                     tableWrapper.find(".dataTables_paginate").show();
@@ -324,6 +343,7 @@ async function cargarDetalleFritura(id) {
                 url: "https://cdn.datatables.net/plug-ins/1.13.5/i18n/es-ES.json",
             },
         });
+
         $("#ModalInfofritura").modal("show");
     } catch (error) {
         Swal.fire({
@@ -364,17 +384,16 @@ const asignarInfo = (lote) => {
     $("#horaFin").text(`${lote.horaFin ?? 0}`);
     $("#total").text(`${lote.canastas ?? 0}`);
     $("#totalMateria").text(
-        `${new Intl.NumberFormat("es-CL").format(lote.materia_kg) ?? 0}`
+        `${new Intl.NumberFormat("es-CL").format(lote.materia_kg) ?? 0}`,
     );
     $("#bajadas").text(`${lote.bajadas ?? 0}`);
     $("#rechazo").text(`${lote.rechazo ?? 0} kg`);
     $("#migas").text(`${lote.migas ?? 0} kg`);
     $("#observaciones").text(
-        `${lote.observaciones || "No hay Observaciones."}`
+        `${lote.observaciones || "No hay Observaciones."}`,
     );
 };
 
-//
 const asignarConteo = (data) => {
     const cardFritura = {
         Lotes: document.querySelector("#Lotes"),
@@ -386,6 +405,11 @@ const asignarConteo = (data) => {
 
 async function cargarInfoLotes(dataLotes) {
     try {
+        // Destruir DataTable anterior si existe
+        if ($.fn.DataTable.isDataTable("#tablaInfoLotes")) {
+            $("#tablaInfoLotes").DataTable().destroy();
+        }
+
         $("#tablaInfoLotes").DataTable({
             data: dataLotes,
             searching: true,
@@ -403,36 +427,34 @@ async function cargarInfoLotes(dataLotes) {
                 {
                     data: null,
                     render: (data, type, row) => `
-                           <div class="btn-group dropend">
-  <button type="button" class="btn btn-light btn-sm dropdown-toggle d-flex align-items-center justify-content-center" style="width: 38px; height: 38px; border-radius: 50%;" data-bs-toggle="dropdown" aria-expanded="false">
-    <i class="fas fa-ellipsis-v"></i>
-  </button>
-  <ul class="dropdown-menu shadow-sm border-0 rounded-3">
-  <li>
-      <a class="dropdown-item d-flex align-items-center info-btn" data-id="${row.id}">
-        <i class="fas fa-circle-info text-info me-2"></i> Información
-      </a>
-    </li>
-    <li>
-      <a class="dropdown-item d-flex align-items-center pdf-btn" id="btnPDF" data-id="${row.id}">
-        <i class="fa-solid fa-file-pdf text-danger me-2"></i> Exportar
-      </a>
-    </li>
-  </ul>
-</div>
-
-                `,
+                        <div class="btn-group dropend">
+                            <button type="button" class="btn btn-light btn-sm dropdown-toggle d-flex align-items-center justify-content-center" style="width: 38px; height: 38px; border-radius: 50%;" data-bs-toggle="dropdown" aria-expanded="false">
+                                <i class="fas fa-ellipsis-v"></i>
+                            </button>
+                            <ul class="dropdown-menu shadow-sm border-0 rounded-3">
+                                <li>
+                                    <a class="dropdown-item d-flex align-items-center info-btn" data-id="${row.id}">
+                                        <i class="fas fa-circle-info text-info me-2"></i> Información
+                                    </a>
+                                </li>
+                                <li>
+                                    <a class="dropdown-item d-flex align-items-center pdf-btn" data-id="${row.id}">
+                                        <i class="fa-solid fa-file-pdf text-danger me-2"></i> Exportar
+                                    </a>
+                                </li>
+                            </ul>
+                        </div>
+                    `,
                 },
             ],
             initComplete: function () {
                 const api = this.api();
-                const $header = $(api.table().header()); // <thead>
-                // Recorremos columnas y conectamos la 2da fila (filtros)
+                const $header = $(api.table().header());
+
                 api.columns().every(function (colIdx) {
                     const column = this;
                     const $thFilter = $header.find("tr:eq(1) th").eq(colIdx);
 
-                    // INPUT -> búsqueda libre (contains)
                     const $input = $thFilter.find("input");
                     if ($input.length) {
                         $input
@@ -445,26 +467,23 @@ async function cargarInfoLotes(dataLotes) {
                             });
                     }
 
-                    // SELECT -> opciones únicas + match exacto
                     const $select = $thFilter.find("select");
                     if ($select.length) {
-                        // llenar opciones únicas ordenadas
                         const uniques = column.data().unique().sort();
-                        // limpiar por si reinicializas
                         $select
                             .empty()
                             .append('<option value="">Todos</option>');
                         uniques.each(function (d) {
                             if (d !== null && d !== undefined && d !== "") {
                                 $select.append(
-                                    `<option value="${d}">${d}</option>`
+                                    `<option value="${d}">${d}</option>`,
                                 );
                             }
                         });
 
                         $select.off("change").on("change", function () {
                             const val = $.fn.dataTable.util.escapeRegex(
-                                $(this).val()
+                                $(this).val(),
                             );
                             column
                                 .search(val ? `^${val}$` : "", true, false)
@@ -488,26 +507,9 @@ async function cargarInfoLotes(dataLotes) {
                 url: "https://cdn.datatables.net/plug-ins/1.13.5/i18n/es-ES.json",
             },
         });
-
-        setupTableListeners("tablaInfoLotes");
     } catch (error) {
         console.error(error);
     }
-}
-
-function setupTableListeners(tableId) {
-    const table = document.getElementById(tableId);
-    if (!table) return;
-
-    eventManager.delegate(table, "click", ".info-btn", async function (e) {
-        const id = this.dataset.id;
-        await cargarDetalleFritura(id);
-    });
-
-    eventManager.delegate(table, "click", ".pdf-btn", async function (e) {
-        const id = this.dataset.id;
-        await generarPDF(id);
-    });
 }
 
 async function buscarOrdenes() {
@@ -515,7 +517,7 @@ async function buscarOrdenes() {
     const query = elementFritura.inputSearch.value.toLowerCase().trim();
 
     if (query === "") {
-        suggestions.innerHTML = "";
+        if (suggestions) suggestions.innerHTML = "";
         return;
     }
 
@@ -531,153 +533,145 @@ async function buscarOrdenes() {
 
         const { data } = response;
         const resultados = data.filter((orden) =>
-            orden.Lote.toLowerCase().includes(query)
+            orden.Lote.toLowerCase().includes(query),
         );
 
-        renderSuggestions(resultados, suggestions, "C");
+        if (suggestions) {
+            renderSuggestions(resultados, suggestions, "C");
+        }
     } catch (error) {
         console.error("Error al buscar órdenes:", error);
     }
 }
 
 function rendenderCardProveedores(data) {
-    const contendor = document.querySelector("#contenedorProveedores");
-    if (!contendor) {
-        return;
-    }
-    contendor.innerHTML = "";
-    data.forEach((item) => {
-        const col = `
-        
-        <div class="col">
-    <div class="card shadow-sm border-0 rounded-3 overflow-hidden">
-        
-        <!-- HEADER -->
-        <div class="card-header fw-bold text-white py-2" style="background-color:#ec6704;">
-            PROVEEDOR
-        </div>
+    const contenedor = document.querySelector("#contenedorProveedores");
+    if (!contenedor) return;
 
-        <div class="card-body">
-
-            <div class="row g-3 align-items-center">
-
-                <!-- LOGO -->
-                <div class="col-4 text-center">
-                    <img src="/assets/images/logo-clean.png"
-                         class="img-fluid img-thumbnail border-0"
-                         style="max-height:120px; object-fit:contain;">
+    // Template por cada item usando map + join (más eficiente)
+    contenedor.innerHTML = data
+        .map(
+            (item) => `
+        <div class="col-6 mb-4">
+            <div class="card shadow-sm border-0 rounded-3 overflow-hidden h-100">
+                <!-- Header con ícono y texto mejor alineado -->
+                <div class="card-header fw-bold text-white py-2 px-3 d-flex align-items-center" 
+                     style="background-color:#ec6704;">
+                    <i class="fa-solid fa-building me-2"></i>
+                    <span>PROVEEDOR</span>
                 </div>
-
-                <!-- DATOS -->
-                <div class="col-8">
-                    
-                    <!-- Nombre proveedor -->
-                    <div class="d-flex align-items-center mb-3">
-                        <i class="fa-solid fa-user text-secondary me-2" style="width:20px;"></i>
-                        <span class="fw-bold fs-5 text-dark">${
-                            item.proveedor
-                        }</span>
+                
+                <div class="card-body p-3 d-flex flex-column">
+                    <!-- Logo centrado con padding consistente -->
+                    <div class="text-center mb-3">
+                        <img src="/assets/images/logo-clean.png"
+                             class="img-fluid rounded-3 p-2 bg-light border"
+                             style="max-height:100px; width:auto; object-fit:contain;">
                     </div>
-
-                    <div class="row g-2">
-
+                    
+                    <!-- Nombre del proveedor con mejor jerarquía visual -->
+                    <div class="d-flex align-items-center mb-3 pb-2 border-bottom">
+                        <div class="bg-light rounded-circle p-2 me-2">
+                            <i class="fa-solid fa-user text-secondary"></i>
+                        </div>
+                        <div class="flex-grow-1">
+                            <small class="text-secondary d-block">Proveedor</small>
+                            <span class="fw-bold fs-5 text-dark lh-1">${item.proveedor}</span>
+                        </div>
+                    </div>
+                    
+                    <!-- Grid de métricas - todas con misma altura y alineación -->
+                    <div class="row g-2 flex-grow-1">
                         <!-- Materia Prima -->
                         <div class="col-6">
-                            <div class="p-2 border rounded bg-light">
-                                <div class="d-flex align-items-center">
-                                    <i class="fa-solid fa-seedling text-success me-2"></i>
-                                    <span class="fw-semibold">Materia</span>
+                            <div class="p-2 border rounded-3 bg-light h-100 d-flex flex-column">
+                                <div class="d-flex align-items-center mb-1">
+                                    <i class="fa-solid fa-seedling text-success me-1" style="width:16px;"></i>
+                                    <span class="small fw-semibold text-secondary">Materia Prima</span>
                                 </div>
-                                <span class="badge bg-success-subtle text-dark mt-1">
-                                    ${new Intl.NumberFormat("es-CL").format(
-                                        item.materia_kg
-                                    )} Kg
+                                <span class="fw-bold fs-5 text-dark">
+                                    ${new Intl.NumberFormat("es-CL").format(item.materia_kg)}
+                                    <small class="fw-normal text-secondary ms-1">kg</small>
                                 </span>
                             </div>
                         </div>
-
+                        
                         <!-- Canastas -->
                         <div class="col-6">
-                            <div class="p-2 border rounded bg-light">
-                                <div class="d-flex align-items-center">
-                                    <i class="fa-solid fa-kaaba text-primary me-2"></i>
-                                    <span class="fw-semibold">Canastas</span>
+                            <div class="p-2 border rounded-3 bg-light h-100 d-flex flex-column">
+                                <div class="d-flex align-items-center mb-1">
+                                    <i class="fa-solid fa-kaaba text-primary me-1" style="width:16px;"></i>
+                                    <span class="small fw-semibold text-secondary">Canastas</span>
                                 </div>
-                                <span class="badge bg-primary-subtle text-dark mt-1">
-                                    ${item.canastas}
-                                </span>
+                                <span class="fw-bold fs-5 text-dark">${item.canastas}</span>
                             </div>
                         </div>
-
+                        
                         <!-- Temperatura -->
                         <div class="col-6">
-                            <div class="p-2 border rounded bg-light">
-                                <div class="d-flex align-items-center">
-                                    <i class="fa-solid fa-temperature-three-quarters text-danger me-2"></i>
-                                    <span class="fw-semibold">Temp.</span>
+                            <div class="p-2 border rounded-3 bg-light h-100 d-flex flex-column">
+                                <div class="d-flex align-items-center mb-1">
+                                    <i class="fa-solid fa-temperature-low text-danger me-1" style="width:16px;"></i>
+                                    <span class="small fw-semibold text-secondary">Temperatura</span>
                                 </div>
-                                <span class="badge bg-danger-subtle text-dark mt-1">
-                                    ${item.temperatura}°C
+                                <span class="fw-bold fs-5 text-dark">
+                                    ${item.temperatura}<small class="fw-normal text-secondary ms-1">°C</small>
                                 </span>
                             </div>
                         </div>
-
+                        
                         <!-- Tiempo -->
                         <div class="col-6">
-                            <div class="p-2 border rounded bg-light">
-                                <div class="d-flex align-items-center">
-                                    <i class="fa-solid fa-clock text-warning me-2"></i>
-                                    <span class="fw-semibold">Tiempo</span>
+                            <div class="p-2 border rounded-3 bg-light h-100 d-flex flex-column">
+                                <div class="d-flex align-items-center mb-1">
+                                    <i class="fa-solid fa-hourglass-half text-warning me-1" style="width:16px;"></i>
+                                    <span class="small fw-semibold text-secondary">Tiempo</span>
                                 </div>
-                                <span class="badge bg-warning-subtle text-dark mt-1">
-                                    ${item.tiempo} min
+                                <span class="fw-bold fs-5 text-dark">
+                                    ${item.tiempo}<small class="fw-normal text-secondary ms-1">min</small>
                                 </span>
                             </div>
                         </div>
-
-                        <!-- Rechazo -->
+                        
+                        <!-- Rechazo (destacado) -->
                         <div class="col-6">
-                            <div class="p-2 border rounded bg-light">
-                                <div class="d-flex align-items-center">
-                                    <i class="fa-solid fa-ban text-danger me-2"></i>
-                                    <span class="fw-semibold">Rechazo</span>
+                            <div class="p-2 border border-danger rounded-3 bg-danger bg-opacity-10 h-100 d-flex flex-column">
+                                <div class="d-flex align-items-center mb-1">
+                                    <i class="fa-solid fa-ban text-danger me-1" style="width:16px;"></i>
+                                    <span class="small fw-semibold text-secondary">Rechazo</span>
                                 </div>
-                                <span class="badge bg-danger text-white mt-1">
-                                    ${new Intl.NumberFormat("es-CL").format(
-                                        item.rechazo
-                                    )} kg
+                                <span class="fw-bold fs-5 text-danger">
+                                    ${new Intl.NumberFormat("es-CL").format(item.rechazo)}
+                                    <small class="fw-normal text-danger ms-1">kg</small>
                                 </span>
                             </div>
                         </div>
-
+                        
                         <!-- Migas -->
                         <div class="col-6">
-                            <div class="p-2 border rounded bg-light">
-                                <div class="d-flex align-items-center">
-                                    <i class="fa-solid fa-cookie text-brown me-2"></i>
-                                    <span class="fw-semibold">Migas</span>
+                            <div class="p-2 border rounded-3 bg-light h-100 d-flex flex-column">
+                                <div class="d-flex align-items-center mb-1">
+                                    <i class="fa-solid fa-cookie me-1" style="color:#8B4513; width:16px;"></i>
+                                    <span class="small fw-semibold text-secondary">Migas</span>
                                 </div>
-                                <span class="badge bg-dark-subtle text-dark mt-1">
-                                    ${new Intl.NumberFormat("es-CL").format(
-                                        item.migas
-                                    )} kg
+                                <span class="fw-bold fs-5 text-dark">
+                                    ${new Intl.NumberFormat("es-CL").format(item.migas)}
+                                    <small class="fw-normal text-secondary ms-1">kg</small>
                                 </span>
                             </div>
                         </div>
                     </div>
-                </div> 
-            </div> 
+                </div>
+            </div>
         </div>
-    </div>
-</div>
-
-        `;
-
-        contendor.innerHTML += col;
-    });
+    `,
+        )
+        .join("");
 }
 
 const generarPDF = async (id) => {
+    console.log("Generando PDF para ID:", id);
+
     const res = await API_FRITURA.get(`/obtener-lote-Id/${id}`, {
         headers: {
             "Content-Type": "application/json",
@@ -705,12 +699,13 @@ const generarPDF = async (id) => {
     if (response.ok) {
         const blob = await response.blob();
         const url = window.URL.createObjectURL(blob);
-        window.open(url, "_blank"); // abre el PDF en nueva pestaña
+        window.open(url, "_blank");
     } else {
         console.error("Error al generar PDF");
     }
 };
 
+// Inicialización
 if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", init);
 } else {

@@ -115,76 +115,96 @@
         </tr>
     </table>
 
-    <!-- ================= TABLA PRINCIPAL ================= -->
-    <table>
-        <thead>
-            <tr>
-                <th rowspan="2" class="T">Proveedor</th>
-                <th rowspan="2" class="T">Producto</th>
-                <th rowspan="2" class="T">Hora Inicio</th>
-                <th rowspan="2" class="T">Hora Final</th>
-                <th rowspan="2" class="T">Temp °C</th>
-                <th rowspan="2" class="T">Tiempo</th>
-                <th colspan="8" class="T">Canastillas</th>
-                <th rowspan="2" class="T">Rechazo</th>
-                <th rowspan="2" class="T">Migas</th>
-            </tr>
-            <tr>
-                <th>A</th>
-                <th>AF</th>
-                <th>B</th>
-                <th>BH</th>
-                <th>C</th>
-                <th>CIL</th>
-                <th>XL</th>
-                <th>P</th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach($proceso as $item)
-                @php
+<!-- ================= TABLA PRINCIPAL ================= -->
+<table>
+    <thead>
+        <tr>
+            <th rowspan="2" class="T">Proveedor</th>
+            <th rowspan="2" class="T">Producto</th>
+            <th rowspan="2" class="T">Hora Inicio</th>
+            <th rowspan="2" class="T">Hora Final</th>
+            <th rowspan="2" class="T">Temp °C</th>
+            <th rowspan="2" class="T">Tiempo</th>
+            <th colspan="8" class="T">Canastillas</th>
+            <th rowspan="2" class="T">Rechazo</th>
+            <th rowspan="2" class="T">Migas</th>
+        </tr>
+        <tr>
+            <th>A</th>
+            <th>AF</th>
+            <th>B</th>
+            <th>BH</th>
+            <th>C</th>
+            <th>CIL</th>
+            <th>XL</th>
+            <th>P</th>
+        </tr>
+    </thead>
+    <tbody>
+        @php
+// Crear un mapa de proveedores únicos con sus IDs
+$proveedoresUnicos = [];
+foreach ($canastillas as $c) {
+    $idProveedor = $c['id_proveedor'];
+    if (!isset($proveedoresUnicos[$idProveedor])) {
+        // Extraer el nombre del proveedor del lote_proveedor (ej: "ASO" de "ASO14226CA")
+        preg_match('/^([A-Z]+)/', $c['lote_proveedor'], $matches);
+        $nombreProveedor = $matches[1] ?? 'DESCONOCIDO';
 
-    $canastas = [
-        'A' => '',
-        'AF' => '',
-        'B' => '',
-        'BH' => '',
-        'C' => '',
-        'CIL' => '',
-        'XL' => '',
-        'P' => ''
-    ];
-
-
-    foreach ($detalles as $d) {
-        if (isset($canastas[$d['tipo']])) {
-            $canastas[$d['tipo']] = $d['canastas'];
-        }
+        $proveedoresUnicos[$idProveedor] = [
+            'nombre' => $nombreProveedor,
+            'canastillas' => [
+                'A' => 0,
+                'AF' => 0,
+                'B' => 0,
+                'BH' => 0,
+                'C' => 0,
+                'CIL' => 0,
+                'XL' => 0,
+                'P' => 0
+            ]
+        ];
     }
-                @endphp
-                <tr>
-                    <td>{{ $item['proveedor'] }}</td>
-                    <td>{{ $produccion['producto'] }}</td>
-                    <td>{{ $item['inicio'] }}</td>
-                    <td>{{ $item['fin'] }}</td>
-                    <td>{{ $item['temperatura'] }}</td>
-                    <td>{{ $item['tiempo'] }}</td>
-                    <td>{{ $canastas['A'] }}</td>
-                    <td>{{ $canastas['AF'] }}</td>
-                    <td>{{ $canastas['B'] }}</td>
-                    <td>{{ $canastas['BH'] }}</td>
-                    <td>{{ $canastas['C'] }}</td>
-                    <td>{{ $canastas['CIL'] }}</td>
-                    <td>{{ $canastas['XL'] }}</td>
-                    <td>{{ $canastas['P'] }}</td>
 
-                    <td>{{ $item['rechazo'] }}</td>
+    $tipo = $c['tipo'] ?? '';
+    $canastas = $c['canastas'] ?? 0;
 
-                    <td>{{ $item['migas'] }}</td>
-                </tr>
-            @endforeach
-        </tbody>
-    </table>
+    if ($tipo && isset($proveedoresUnicos[$idProveedor]['canastillas'][$tipo])) {
+        $proveedoresUnicos[$idProveedor]['canastillas'][$tipo] += $canastas;
+    }
+}
+        @endphp
+
+        @foreach($proveedoresUnicos as $idProveedor => $datos)
+                    @php
+            $procesoItem = $proceso[$loop->index] ?? null;
+                    @endphp
+                    @if($procesoItem)
+                        <tr>
+                            <td>{{ $procesoItem['proveedor'] }}</td>
+                            <td>{{ $produccion['producto'] }}</td>
+                            <td>{{ $procesoItem['inicio'] }}</td>
+                            <td>{{ $procesoItem['fin'] }}</td>
+                            <td>{{ $procesoItem['temperatura'] }}</td>
+                            <td>{{ $procesoItem['tiempo'] }}</td>
+
+                            <!-- Mostrar las canastillas de este proveedor -->
+                            <td>{{ $datos['canastillas']['A'] > 0 ? $datos['canastillas']['A'] : '-' }}</td>
+                            <td>{{ $datos['canastillas']['AF'] > 0 ? $datos['canastillas']['AF'] : '-' }}</td>
+                            <td>{{ $datos['canastillas']['B'] > 0 ? $datos['canastillas']['B'] : '-' }}</td>
+                            <td>{{ $datos['canastillas']['BH'] > 0 ? $datos['canastillas']['BH'] : '-' }}</td>
+                            <td>{{ $datos['canastillas']['C'] > 0 ? $datos['canastillas']['C'] : '-' }}</td>
+                            <td>{{ $datos['canastillas']['CIL'] > 0 ? $datos['canastillas']['CIL'] : '-' }}</td>
+                            <td>{{ $datos['canastillas']['XL'] > 0 ? $datos['canastillas']['XL'] : '-' }}</td>
+                            <td>{{ $datos['canastillas']['P'] > 0 ? $datos['canastillas']['P'] : '-' }}</td>
+
+                            <td>{{ $procesoItem['rechazo'] }}</td>
+                            <td>{{ $procesoItem['migas'] }}</td>
+                        </tr>
+                    @endif
+        @endforeach
+    </tbody>
+</table>
 
     <!-- ================= TOTALES POR LOTE ================= -->
     <table>
@@ -256,13 +276,15 @@
     <table class="sin-borde">
         <tr>
             <td class="firma">
+                 Germán Ortiz<br>
                 _______________________________<br>
-                Germán Ortiz<br>
+
                 Revisado por
             </td>
             <td class="firma">
+                {{ $produccion['responsable'] ?? '' }}<br>
                 _______________________________<br>
-                {{ $produccion['responsable']['nombre'] ?? '' }}<br>
+
                 Responsable
             </td>
         </tr>

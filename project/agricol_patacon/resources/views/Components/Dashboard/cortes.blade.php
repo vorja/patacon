@@ -164,10 +164,11 @@
                                         <thead>
                                             <tr>
                                                 <th class="S" rowspan="2" style="text-align: center">PROVEEDORES</th>
-                                                <th class="I text-center" colspan="4">INFORMACIÓN</th>
+                                                <th class="I text-center" colspan="5">INFORMACIÓN</th>
                                             </tr>
                                             <tr>
                                                 <th class="F text-center">Fecha </th>
+                                                <th class="F text-center">Lote </th>
                                                 <th class="F text-center">Total Kg </th>
                                                 <th class="F text-center">Rechazo </th>
                                                 <th class="F text-center">Rendmiento</th>
@@ -185,11 +186,12 @@
                                         style="width: 100%">
                                         <thead>
                                             <tr>
-                                                <th class="I text-center" colspan="3">INFORMACIÓN DE CORTES DE PROVEEDOR
+                                                <th class="I text-center" colspan="4">INFORMACIÓN DE CORTES DE PROVEEDOR
                                                 </th>
                                             </tr>
                                             <tr>
                                                 <th class="F text-center">Proveedor </th>
+                                                <th class="F text-center">lote </th>
                                                 <th class="F text-center">Tipo </th>
                                                 <th class="F text-center">Cantidad</th>
                                             </tr>

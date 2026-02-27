@@ -64,11 +64,22 @@ export const getRegistroCajasEmpaque = async (req, res) => {
   try {
     const { fecha } = req.params;
     const listRegistros = await getCajasEmpaque(fecha);
+
+    // Si no hay registros, retornar éxito con array vacío
+    if (listRegistros.empaques.length === 0) {
+      return sendResponse(
+        res,
+        StatusCodes.SUCCESS,
+        { empaques: [], registroBodega: null },
+        "No hay registros de empaque para esta fecha.",
+      );
+    }
+
     return sendResponse(
       res,
       StatusCodes.SUCCESS,
       listRegistros,
-      "Lista de Cajas de empaque."
+      "Lista de Cajas de empaque.",
     );
   } catch (error) {
     console.log("error: ", error);
@@ -76,8 +87,8 @@ export const getRegistroCajasEmpaque = async (req, res) => {
     return sendResponse(
       res,
       StatusCodes.NOT_FOUND,
-      null,
-      `Ocurrio un error Inesperado.`
+      { empaques: [], registroBodega: null },
+      `No se encontraron registros para esta fecha.`,
     );
   }
 };

@@ -24,6 +24,11 @@ router.post(
   validarRecepcion,
   createRegistroRecepcionMateriaPrima
 ); // Crear un nuevo registro de recepción de materia prima.
+router.post(
+  "/crear/sobrante",
+  verificarToken,
+  createRegistroRecepcionMateriaPrima
+); // Crear un nuevo registro de recepción de materia prima que sobro del dia anterior.
 router.get(
   "/obtener/:id",
   verificarToken,

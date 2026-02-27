@@ -42,6 +42,10 @@ import configuracion from "./routes/data/configuracion.mjs";
 import { RedisStore } from "connect-redis";
 import { createClient } from "redis";
 
+import HistorialSobrantes from "./models/historialSobrantes.mjs";
+import HistorialEnvios from "./models/historialEnvios.mjs";
+import lotesFrituraRoutes from "./routes/data/lotesFritura.js";
+
 dotenv.config();
 const app = express();
 
@@ -97,7 +101,7 @@ app.use("/data/bodega", dataBodega);
 app.use("/data/materia", dataMateria);
 app.use("/data/inventario", dataInventario);
 app.use("/data/insumos", dataInsumos);
-app.use("/data/verficarempaques", dataVerificacion);
+app.use("/data/verificacion", dataVerificacion);
 app.use("/data/rol", dataRol);
 app.use("/data/referencias", dataReferencia);
 app.use("/data/historial", dataSession);
@@ -115,6 +119,8 @@ app.use("/data/temperatura", dataTemperatura);
 app.use("/config/encargo", configuracion);
 app.use("/data/alistamiento", dataControlAlistamiento);
 app.use("/auth", authRoutes);
+
+app.use("/data/lotes-fritura", lotesFrituraRoutes);
 
 wss.on("connection", (ws) => {
   console.log("Cliente WebSocket conectado");

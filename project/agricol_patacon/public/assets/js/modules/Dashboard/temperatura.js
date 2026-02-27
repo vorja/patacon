@@ -1,11 +1,10 @@
-import { AlertManager, ApiService } from "../../helpers/ApiUseManager.js";
+import { AlertManager, ApiService, Url } from "../../helpers/ApiUseManager.js";
 import eventManager from "../../helpers/EventsManager.js";
 import notificationManager from "../../helpers/NotificacionesManger.js";
 
-const API_TEMPERATURA = new ApiService(
-    "http://localhost:3105/data/temperatura"
-);
-const API_CUARTO = new ApiService("http://localhost:3105/data/cuarto");
+const API_TEMPERATURA = new ApiService(Url + "/data/temperatura");
+const API_CUARTO = new ApiService(Url + "/data/cuarto");
+
 const alerts = new AlertManager();
 
 const token = document
@@ -48,39 +47,39 @@ async function cargarCuartos() {
             throw new Error("Hubo un error o No hay cuartos disponibles.");
         }
 
-        const { data } = res;
+        const { cuartos } = res.data;
 
-        data.forEach((data) => {
+        cuartos.forEach((data) => {
             const element = `
-<div class="col-4">
-  <div class="card shadow border-0 p-3" style="border-radius: 1rem; background-color: #ffffff;">
-    <div class="card-header d-flex align-items-center gap-2 text-white border-0 mt-2"
-         style="background-color: #1f6175; border-radius: 0.7rem;">
-      <i class="fas fa-snowflake"></i>
-      <h4 class="mb-0">${data.nombre}</h4>
-    </div>
-    <div class="card-body">
-      <p class="card-text text-muted mb-3">
-        <i class="fas fa-quote-left me-2 text-secondary"></i>${data.descripcion}.
-      </p>
-      <div class="row align-items-center">
-        <div class="col-8">
-          <input 
-            type="month" 
-            class="form-control form-control-sm rounded-pill mt-2 shadow-sm"
-            id="fecha-${data.id}" 
-            data-id="${data.id}"/>
-        </div>
-        <div class="col-4 text-center">
-          <button class="btn btn-sm btn-success text-white search-btn mt-2" style="border-radius: 50%; width: 40px; height: 38px;"data-action="search${data.id}" data-id="${data.id}">
-            <i class="fas fa-search"></i>
-          </button>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
-`;
+            <div class="col-4">
+            <div class="card shadow border-0 p-3" style="border-radius: 1rem; background-color: #ffffff;">
+                <div class="card-header d-flex align-items-center gap-2 text-white border-0 mt-2"
+                    style="background-color: #1f6175; border-radius: 0.7rem;">
+                <i class="fas fa-snowflake"></i>
+                <h4 class="mb-0">${data.nombre}</h4>
+                </div>
+                <div class="card-body">
+                <p class="card-text text-muted mb-3">
+                    <i class="fas fa-quote-left me-2 text-secondary"></i>${data.descripcion}.
+                </p>
+                <div class="row align-items-center">
+                    <div class="col-8">
+                    <input 
+                        type="month" 
+                        class="form-control form-control-sm rounded-pill mt-2 shadow-sm"
+                        id="fecha-${data.id}" 
+                        data-id="${data.id}"/>
+                    </div>
+                    <div class="col-4 text-center">
+                    <button class="btn btn-sm btn-success text-white search-btn mt-2" style="border-radius: 50%; width: 40px; height: 38px;"data-action="search${data.id}" data-id="${data.id}">
+                        <i class="fas fa-search"></i>
+                    </button>
+                    </div>
+                </div>
+                </div>
+            </div>
+            </div>
+            `;
             row.innerHTML += element;
         });
     } catch (error) {
@@ -231,7 +230,7 @@ function limpiarFormulario() {
 function sanitizarCampos(nombre, descripcion) {
     nombre = nombre.trim();
     descripcion = descripcion.trim();
-    const regexNombre = /^[a-zA-Z0-9 ]*$/;
+    const regexNombre = /^[a-zA-Z0-9ÁÉÍÓÚáéíóúñÑ ]*$/;
     const regexDescripcion = /^[a-zA-ZÁÉÍÓÚáéíóúñÑ ,]+$/;
 
     if (!regexNombre.test(nombre)) {
@@ -273,7 +272,7 @@ async function formCuarto(e) {
 }
 async function guardarCuarto(cuarto) {
     try {
-        const response = await fetch("/crear", cuarto, {
+        const response = await API_CUARTO.post("/crear", cuarto, {
             headers: {
                 "Content-Type": "application/json",
                 Authorization: "Bearer " + token,

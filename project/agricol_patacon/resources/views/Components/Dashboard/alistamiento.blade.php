@@ -25,7 +25,8 @@
                                             </small>
                                             <span class="text-muted" id="">Total</span>
                                         </div>
-                                        <div class="icon icon-shape text-white border-0 rounded shadow" style="background-color: #2a93da">
+                                        <div class="icon icon-shape text-white border-0 rounded shadow"
+                                            style="background-color: #2a93da">
                                             <i class="fa-solid fa-chart-bar fa-2x p-1"></i>
                                         </div>
                                     </div>
@@ -44,7 +45,8 @@
                                             </small>
                                             <span class="text-muted" id="">Total</span>
                                         </div>
-                                        <div class="icon icon-shape text-white border-0 rounded shadow" style="background-color: #da2a2a">
+                                        <div class="icon icon-shape text-white border-0 rounded shadow"
+                                            style="background-color: #da2a2a">
                                             <i class="fa-solid fa-chart-pie fa-2x p-1"></i>
                                         </div>
                                     </div>
@@ -63,7 +65,8 @@
                                             </small>
                                             <span class="text-muted" id="">Total</span>
                                         </div>
-                                        <div class="icon icon-shape text-white border-0 rounded shadow" style="background-color: #000000">
+                                        <div class="icon icon-shape text-white border-0 rounded shadow"
+                                            style="background-color: #000000">
                                             <i class="fa-solid fa-kaaba fa-2x p-1"></i>
                                         </div>
                                     </div>
@@ -87,8 +90,8 @@
         <div class="col-12 mb-2 mt-4">
             <div class="col-4">
                 <div class="input-group">
-                    <input type="text" class="form-control shadow-sm" id="inputSearch"
-                        placeholder="Buscar Contenedor.." autocomplete="off">
+                    <input type="text" class="form-control shadow-sm" id="inputSearch" placeholder="Buscar Contenedor.."
+                        autocomplete="off">
                     <span class="input-group-text"><i class="fa-solid fa-magnifying-glass"></i></span>
                 </div>
                 <div class="input-group">
@@ -233,6 +236,29 @@
                             </div>
                         </div>
                     </div>
+
+                    <div class="collapse multi-collapse mb-2" id="collapseObservaciones">
+                        <div class="card border-0 rounded-4 shadow-sm">
+                            <div class="card-body">
+                                <table class="table tabla-personalized" id="tablaObservaciones" style="width: 100%">
+                                    <thead>
+                                        <tr>
+                                            <th class="fw-bold text-center"
+                                                style="background-color: #f8f9fa; color: #24243c;" colspan="1">
+                                                OBSERVACIONES
+                                            </th>
+                                        </tr>
+                                        <tr>
+                                            <th class="text-center">Observación</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="card border-0 rounded-4 shadow-sm mb-2">
                         <div class="card-body rounded">
                             <table class="table tabla-personalized" id="tablaInfoAlistamiento" style="width: 100%">

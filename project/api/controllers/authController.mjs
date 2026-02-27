@@ -17,6 +17,12 @@ export const login = async (req, res) => {
     "Produccion",
     "Termometrista",
     "Empacador",
+    "Recepcion",
+    "Alistamiento",
+    "Corte",
+    "Fritura",
+    "Empaque",
+    "Cuartos",
   ];
 
   try {

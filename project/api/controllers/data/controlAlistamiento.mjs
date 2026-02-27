@@ -7,10 +7,46 @@ import {
   getAll,
   update,
   statusDelete,
+  restarCantidad,
 } from "../../services/alistamientoService.mjs";
 
 import { sendResponse, StatusCodes } from "../../helpers/statusCode.mjs";
 import { broadcastWS } from "../../app.mjs";
+
+// En controllers/data/recepcion.mjs - AÑADIR ESTA FUNCIÓN
+
+export const restarCantidadProveedor = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { cantidad_restar_kg, motivo, id_proveedor } = req.body;
+
+    if (!cantidad_restar_kg || cantidad_restar_kg <= 0) {
+      return sendResponse(
+        res,
+        StatusCodes.BAD_REQUEST,
+        null,
+        "La cantidad a restar debe ser mayor a 0",
+      );
+    }
+
+    const resultado = await restarCantidad(id, {
+      cantidad_restar_kg: parseFloat(cantidad_restar_kg),
+      motivo: motivo || "Restado por sobrantes de alistamiento",
+      id_proveedor,
+      fecha_resta: new Date().toISOString().split("T")[0],
+    });
+
+    return sendResponse(
+      res,
+      StatusCodes.SUCCESS,
+      resultado.data,
+      "Cantidad restada correctamente"
+    );
+  } catch (error) {
+    console.log("Error al restar cantidad:", error);
+    return sendResponse(res, StatusCodes.NOT_FOUND, null, error.message);
+  }
+};
 
 export const createControlAlistamiento = async (req, res) => {
   try {
