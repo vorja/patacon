@@ -111,12 +111,6 @@ export const create = async (data) => {
 
     let creado;
 
-    /*  if (!defectos || !Array.isArray(defectos) || defectos.length === 0) {
-      throw new Error(
-        "El array 'defectos' es requerido y no puede estar vacío."
-      );
-    } */
-
     // Registro principal
     const newRegistro = await RegistroRecepcionMateriaPrima.create(
       informacion,
@@ -132,21 +126,7 @@ export const create = async (data) => {
     // Inventario principal - usar create directamente si estado es 2
     let inventarioRegistro;
 
-    if (estado === 2) {
-      // Solo crear, sin buscar
-      inventarioRegistro = await InventarioMateriaPrima.create(
-        {
-          fecha_recepcion: informacion.fecha_procesamiento,
-          lote_proveedor: informacion.lote,
-          producto: informacion.producto,
-          id_proveedor: informacion.id_proveedor,
-          materia_recp: informacion.cantidad,
-          materia_proceso: informacion.cantidad,
-          estado: estado,
-        },
-        { transaction },
-      );
-    } else {
+    if (estado === 1) {
       // Usar findOrCreate solo para estado 1
       [inventarioRegistro, creado] = await InventarioMateriaPrima.findOrCreate({
         where: {

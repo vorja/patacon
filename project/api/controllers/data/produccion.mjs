@@ -4,6 +4,7 @@ import {
   getById,
   getPerformances,
   getPerformanceDay,
+  getPerformanceGeneral,
   getPerformanceProv,
   getProducciones,
   getContainerInfo,
@@ -13,6 +14,7 @@ import {
   getHistorialProv,
   statusProceso,
   asigCajas,
+  getPerformanceAnual,
 } from "../../services/produccionService.mjs";
 import { sendResponse, StatusCodes } from "../../helpers/statusCode.mjs";
 
@@ -25,13 +27,14 @@ export const createProduccion = async (req, res) => {
       res,
       StatusCodes.SUCCESS,
       nuevoProduccion,
-      "Produccion registrado exitosamente."
+      "Produccion registrado exitosamente.",
     );
   } catch (error) {
     console.log("", error);
     return sendResponse(res, StatusCodes.NOT_FOUND, null, `${error}`);
   }
 };
+
 // Asiganar las referencias de cajas a una producción
 export const asigCajasProduccion = async (req, res) => {
   try {
@@ -41,7 +44,7 @@ export const asigCajasProduccion = async (req, res) => {
       res,
       StatusCodes.SUCCESS,
       nuevoProduccion,
-      "Referencias Asignadas exitosamente."
+      "Referencias Asignadas exitosamente.",
     );
   } catch (error) {
     console.log("", error);
@@ -57,7 +60,7 @@ export const getProduccion = async (req, res) => {
       res,
       StatusCodes.SUCCESS,
       producciones,
-      "Lista de contenedores."
+      "Lista de contenedores.",
     );
   } catch (error) {
     console.log("", error);
@@ -73,13 +76,47 @@ export const getProduccionesProcesos = async (req, res) => {
       res,
       StatusCodes.SUCCESS,
       producciones,
-      "Lista de producciones."
+      "Lista de producciones.",
     );
   } catch (error) {
     console.log("", error);
     return sendResponse(res, StatusCodes.NOT_FOUND, null, `${error}`);
   }
 };
+
+export const getPerformanceAnualProduccion = async (req, res) => {
+  try {
+    const { año } = req.params; // Opcional: si no se envía año, usa el actual
+    const rendimientoAnual = await getPerformanceAnual(año);
+    return sendResponse(
+      res,
+      StatusCodes.SUCCESS,
+      rendimientoAnual,
+      "Rendimiento General del Año",
+    );
+  } catch (error) {
+    console.log("", error);
+    return sendResponse(res, StatusCodes.NOT_FOUND, null, `${error}`);
+  }
+};
+
+// Obtener el rendimiento GENERAL de un año específico
+export const getPerformanceAnioEspecifico = async (req, res) => {
+  try {
+    const { año } = req.params;
+    const rendimientoAnual = await getPerformanceAnual(año);
+    return sendResponse(
+      res,
+      StatusCodes.SUCCESS,
+      rendimientoAnual,
+      `Rendimiento General del Año ${año}`,
+    );
+  } catch (error) {
+    console.log("", error);
+    return sendResponse(res, StatusCodes.NOT_FOUND, null, `${error}`);
+  }
+};
+
 
 // Obtener el rendimiento de las producciones de un contenedor.
 export const getPerformanceProducciones = async (req, res) => {
@@ -90,7 +127,24 @@ export const getPerformanceProducciones = async (req, res) => {
       res,
       StatusCodes.SUCCESS,
       producciones,
-      "Rendimientos de Producciones."
+      "Rendimientos de Producciones.",
+    );
+  } catch (error) {
+    console.log("", error);
+    return sendResponse(res, StatusCodes.NOT_FOUND, null, `${error}`);
+  }
+};
+
+// Obtener el rendimiento GENERAL de un contenedor específico
+export const getPerformanceGeneralProduccion = async (req, res) => {
+  try {
+    const { orden } = req.params; // <-- Recibimos el ID de la orden
+    const rendimientoGeneral = await getPerformanceGeneral(orden);
+    return sendResponse(
+      res,
+      StatusCodes.SUCCESS,
+      rendimientoGeneral,
+      "Rendimiento General del Contenedor"
     );
   } catch (error) {
     console.log("", error);
@@ -107,7 +161,7 @@ export const getProyeccionesContenedor = async (req, res) => {
       res,
       StatusCodes.SUCCESS,
       container,
-      "Proyecion de Contendor."
+      "Proyecion de Contendor.",
     );
   } catch (error) {
     console.log("", error);
@@ -124,7 +178,7 @@ export const getInfoContainer = async (req, res) => {
       res,
       StatusCodes.SUCCESS,
       container,
-      "Información de Contenedor."
+      "Información de Contenedor.",
     );
   } catch (error) {
     console.log("", error);
@@ -141,7 +195,7 @@ export const getHistorialProveedor = async (req, res) => {
       res,
       StatusCodes.SUCCESS,
       infoProveedor,
-      "Historial de Proveedor."
+      "Historial de Proveedor.",
     );
   } catch (error) {
     console.log("", error);
@@ -158,7 +212,7 @@ export const getInfoProveedor = async (req, res) => {
       res,
       StatusCodes.SUCCESS,
       infoProveedor,
-      "Información de Proveedor."
+      "Información de Proveedor.",
     );
   } catch (error) {
     console.log("", error);
@@ -166,7 +220,7 @@ export const getInfoProveedor = async (req, res) => {
   }
 };
 
-// Obtener el rendimiento de 1 producción
+// Obtener el rendimiento de 1 producción (por fecha)
 export const getPerformanceProduccion = async (req, res) => {
   try {
     const { fecha } = req.params;
@@ -175,7 +229,7 @@ export const getPerformanceProduccion = async (req, res) => {
       res,
       StatusCodes.SUCCESS,
       producciones,
-      "Rendimiento de Producción"
+      "Rendimiento de Producción",
     );
   } catch (error) {
     console.log("", error);
@@ -192,7 +246,7 @@ export const getProduccionById = async (req, res) => {
       res,
       StatusCodes.SUCCESS,
       data,
-      "Produccion encontrada."
+      "Produccion encontrada.",
     );
   } catch (error) {
     console.log("", error);
@@ -210,7 +264,7 @@ export const updateProduccion = async (req, res) => {
       res,
       StatusCodes.UPDATED,
       actualizado,
-      "Produccion actualizado correctamente."
+      "Produccion actualizado correctamente.",
     );
   } catch (error) {
     console.log("", error);
@@ -227,11 +281,10 @@ export const deleteProduccion = async (req, res) => {
       res,
       StatusCodes.DELETED,
       null,
-      "Produccion eliminada."
+      "Produccion eliminada.",
     );
   } catch (error) {
     console.log("", error);
-
     return sendResponse(res, StatusCodes.NOT_FOUND, null, `${error}`);
   }
 };
@@ -245,7 +298,7 @@ export const finalizarProduccion = async (req, res) => {
       res,
       StatusCodes.DELETED,
       null,
-      "Produccion finalizada."
+      "Produccion finalizada.",
     );
   } catch (error) {
     console.log("", error);

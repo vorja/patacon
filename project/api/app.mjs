@@ -80,9 +80,9 @@ app.use(
     saveUninitialized: false,
     cookie: {
       secure: false,
-      maxAge: 7200000,
+      maxAge: 32400000,
     },
-  })
+  }),
 );
 
 redisClient.on("error", (err) => {

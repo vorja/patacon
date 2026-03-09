@@ -346,8 +346,7 @@ async function restorePeladoresTable(peladoresData) {
                     nombreCelda.textContent === pelador.pelador
                 ) {
                     // Restaurar valores
-                    fila.cells[2].textContent =
-                        pelador.cantidades || "0/0/0/0/0/0";
+                    fila.cells[2].textContent = pelador.cantidades || "0/0/0/0/0/0";
                     fila.cells[3].textContent = pelador.totales || 0;
                     fila.cells[4].textContent = pelador.rechazo || 0;
                     fila.cells[5].textContent = pelador.maduro || 0;
@@ -357,8 +356,7 @@ async function restorePeladoresTable(peladoresData) {
                         `option[data-id="${pelador.id_pelador}"]`,
                     );
                     if (option) {
-                        option.dataset.asignacion =
-                            pelador.cantidades || "0/0/0/0/0/0";
+                        option.dataset.asignacion = pelador.cantidades || "0/0/0/0/0/0";
                         option.dataset.rechazo = pelador.rechazo || 0;
                         option.dataset.maduro = pelador.maduro || 0;
                     }
@@ -385,9 +383,7 @@ document.getElementById("pelador").addEventListener("input", (e) => {
 
     // Quitamos el atributo disable para hablilitar la edicion o asignacion.
     for (let index = 0; index < 6; index++) {
-        document
-            .querySelector(`#cantidadDetalle${index + 1}`)
-            .removeAttribute("disabled");
+        document.querySelector(`#cantidadDetalle${index + 1}`).removeAttribute("disabled");
     }
 
     document.getElementById("listProveedores").removeAttribute("disabled");
@@ -423,12 +419,8 @@ document.getElementById("listProveedores").addEventListener("input", (e) => {
     const nuevoProveedor = obtenerProveedorCompleto();
 
     if (!nuevoProveedor || nuevoProveedor.nombre === "") {
-        document
-            .getElementById("cantidadRechazo")
-            .setAttribute("disabled", true);
-        document
-            .getElementById("cantidadMaduro")
-            .setAttribute("disabled", true);
+        document.getElementById("cantidadRechazo").setAttribute("disabled", true);
+        document.getElementById("cantidadMaduro").setAttribute("disabled", true);
         document.getElementById("btnInfoProve").setAttribute("disabled", true);
         proveedorActual = null;
         return;
@@ -494,10 +486,8 @@ document.getElementById("btnInfoProve").addEventListener("click", async (e) => {
 
     const peladorId = document.getElementById("idpelador");
     const indice = peladorId.getAttribute("data-index-table");
-    const totalRechazo =
-        parseFloat(document.getElementById("totalRechazo").value.trim()) || 0;
-    const totalMaduro =
-        parseFloat(document.getElementById("totalMaduro").value.trim()) || 0;
+    const totalRechazo = parseFloat(document.getElementById("totalRechazo").value.trim()) || 0;
+    const totalMaduro = parseFloat(document.getElementById("totalMaduro").value.trim()) || 0;
 
     // Verificar si ya existe asignación para este pelador y proveedor específico
     const indexExistente = rechazoPro.findIndex(
@@ -509,15 +499,9 @@ document.getElementById("btnInfoProve").addEventListener("click", async (e) => {
     );
 
     const esActualizacion = indexExistente !== -1;
-    const titulo = esActualizacion
-        ? "¿Actualizar asignación?"
-        : "¿Estás seguro?";
-    const texto = esActualizacion
-        ? "¡Se actualizará la información del proveedor!"
-        : "¡Se asignará está información al proveedor sin vuelta atrás!";
-    const textoConfirmacion = esActualizacion
-        ? "Sí, Actualizar"
-        : "Sí, Asignar";
+    const titulo = esActualizacion? "¿Actualizar asignación?": "¿Estás seguro?";
+    const texto = esActualizacion? "¡Se actualizará la información del proveedor!": "¡Se asignará está información al proveedor sin vuelta atrás!";
+    const textoConfirmacion = esActualizacion? "Sí, Actualizar": "Sí, Asignar";
 
     const result = await Swal.fire({
         title: titulo,
@@ -570,9 +554,7 @@ document.getElementById("btnInfoProve").addEventListener("click", async (e) => {
 
     await Swal.fire({
         icon: "success",
-        title: esActualizacion
-            ? "Información Actualizada"
-            : "Información Asignada",
+        title: esActualizacion? "Información Actualizada": "Información Asignada",
         html: `Se ha ${esActualizacion ? "actualizado" : "asignado"} la información del proveedor:<br>
                <p class="badge text-danger fw-bold fs-5">${proveedorInfo.textoCompleto}</p>
                <br>Rechazo: <strong>${totalRechazo}</strong> | Maduro: <strong>${totalMaduro}</strong>`,
@@ -662,22 +644,15 @@ function validarCamposForm(campos) {
 }
 
 function validarCanastillas() {
-    let totalDetalle =
-        parseInt(document.getElementById("totalcortes").value.trim()) || 0;
+    let totalDetalle = parseInt(document.getElementById("totalcortes").value.trim()) || 0;
     let btnGuardarInfo = document.getElementById("btnDetalle");
     let limite = parseInt(document.getElementById("limite").value.trim()) || 0;
-    let totalGeneral =
-        parseInt(document.getElementById("total").value.trim()) || 0;
+    let totalGeneral = parseInt(document.getElementById("total").value.trim()) || 0;
 
-    const indice = document
-        .getElementById("idpelador")
-        .getAttribute("data-index-table");
-    const fila = document.querySelector(
-        `#tabla-peladores tbody tr:nth-child(${parseInt(indice) + 1})`,
-    );
-    const valorAnteriorFila = fila
-        ? parseInt(fila.cells[3].textContent) || 0
-        : 0;
+    const indice = document.getElementById("idpelador").getAttribute("data-index-table");
+    const fila = document.querySelector(`#tabla-peladores tbody tr:nth-child(${parseInt(indice) + 1})`,);
+
+    const valorAnteriorFila = fila? parseInt(fila.cells[3].textContent) || 0: 0;
 
     const totalAjustado = totalGeneral - valorAnteriorFila + totalDetalle;
 
@@ -782,9 +757,7 @@ function obtenerProveedores() {
             id_proveedor: id,
             recepcionId: recepcionId,
             proveedorData: proveedorData,
-            cantidad_usada: proveedorData
-                ? proveedorData.cantidad
-                : "no encontrado",
+            cantidad_usada: proveedorData? proveedorData.cantidad: "no encontrado",
             canastillas_usadas: proveedorData ? proveedorData.cantidad / 20 : 0,
         });
 
@@ -972,15 +945,10 @@ function storeData() {
     const cantidad5 = document.getElementById("cantidadDetalle5").value;
     const cantidad6 = document.getElementById("cantidadDetalle6").value;
 
-    const totalcortes =
-        parseInt(document.getElementById("totalcortes").value.trim()) || 0;
+    const totalcortes = parseInt(document.getElementById("totalcortes").value.trim()) || 0;
     const indice = peladorId.getAttribute("data-index-table");
-    const fila = document.querySelector(
-        `#tabla-peladores tbody tr:nth-child(${parseInt(indice) + 1})`,
-    );
-    const valorAnteriorFila = fila
-        ? parseInt(fila.cells[3].textContent) || 0
-        : 0;
+    const fila = document.querySelector(`#tabla-peladores tbody tr:nth-child(${parseInt(indice) + 1})`,);
+    const valorAnteriorFila = fila? parseInt(fila.cells[3].textContent) || 0: 0;
 
     const totalAjustado = total - valorAnteriorFila + totalcortes;
 
@@ -1041,9 +1009,8 @@ function storeData() {
     asignadas[5] = cantidad6;
 
     const canastillas = asignadas.join("/");
-    const optionPelador = document.querySelector(
-        `option[data-id="${peladorId.value}"]`,
-    );
+    const optionPelador = document.querySelector(`option[data-id="${peladorId.value}"]`,);
+
     optionPelador.setAttribute("data-asignacion", canastillas);
     optionPelador.setAttribute("data-rechazo", totalRechazo);
     optionPelador.setAttribute("data-maduro", totalMaduro);
@@ -1109,13 +1076,9 @@ cantidadInputsDetalle.forEach((input) => {
     });
 });
 
-document
-    .querySelector("#cantidadRechazo")
-    .addEventListener("input", updateTotalRechazo);
+document.querySelector("#cantidadRechazo").addEventListener("input", updateTotalRechazo);
 
-document
-    .querySelector("#cantidadMaduro")
-    .addEventListener("input", updateTotalMaduro);
+document.querySelector("#cantidadMaduro").addEventListener("input", updateTotalMaduro);
 
 function updateTotalDetalle() {
     let total = 0;
@@ -1376,10 +1339,8 @@ function obtenerProveedoresDelFormulario() {
         const lote = input.getAttribute("data-lote");
 
         if (nombreInput && cantidadInput) {
-            const cantidad =
-                parseFloat(cantidadInput.getAttribute("data-canastillas")) || 0;
-            const materia =
-                parseFloat(cantidadInput.getAttribute("data-kg")) || 0;
+            const cantidad = parseFloat(cantidadInput.getAttribute("data-canastillas")) || 0;
+            const materia = parseFloat(cantidadInput.getAttribute("data-kg")) || 0;
 
             proveedores.push({
                 id: input.getAttribute("data-recepcion"),
@@ -1746,8 +1707,7 @@ function cargarProveedoresSwal(proveedores) {
 
                 // Mantener los primeros caracteres del lote original y agregar fecha
                 const loteBase = lote.substring(0, Math.min(3, lote.length));
-                document.getElementById("swal-lote").value =
-                    `${loteBase}${day}${month}${year}`;
+                document.getElementById("swal-lote").value = `${loteBase}${day}${month}${year}`;
             }   
             // Mostrar información de disponibilidad
             console.log('Proveedor seleccionado:', {

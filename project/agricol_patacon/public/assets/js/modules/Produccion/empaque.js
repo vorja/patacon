@@ -20,6 +20,10 @@ let pesoCaja_kg = 0;
 
 let disponibilidadProveedores = new Map(); // key: lote_proveedor_tipo_loteProduccion, value: disponibles
 
+// VARIABLES GLOBALES PARA EL SALDO TOTAL
+let saldoGlobalTotal = 0;
+let saldoGlobalUsado = 0;
+
 const elements = {
     inputFecha: document.getElementById("fechaProduccion"),
     inputCanastas: document.getElementById("canastas"),
@@ -117,9 +121,13 @@ const eventEliminar = (btn) => {
     });
 };
 
+// Modificar el event listener de inputFecha
 elements.inputFecha.addEventListener("change", async () => {
     const fecha = elements.inputFecha.value.trim();
     lotes = [];
+    saldoGlobalTotal = 0; // Resetear el saldo global
+    // NO reseteamos saldoGlobalUsado aquí, lo calcularemos después
+    
     if (!fecha) return;
 
     try {
@@ -147,15 +155,35 @@ elements.inputFecha.addEventListener("change", async () => {
         optionDefault.value = "";
         elements.selecLotes.appendChild(optionDefault);
 
-        // Agrupar lotes por lote_produccion + tipo para evitar duplicados
+        // Agrupar lotes por lote_produccion + tipo
         const lotesUnicos = {};
 
         lotesFritura.forEach((item) => {
             const clave = `${item.lote_produccion}_${item.tipo}`;
             if (!lotesUnicos[clave]) {
                 lotesUnicos[clave] = item;
+                // SUMAR al saldo global TOTAL
+                saldoGlobalTotal += item.saldo || 0;
             }
         });
+
+        // Guardar el saldo global total en un atributo data
+        elements.selecLotes.dataset.saldoGlobalTotal = saldoGlobalTotal;
+        
+        // CALCULAR cuánto del saldo global YA ESTÁ USADO en la tabla para ESTA fecha
+        saldoGlobalUsado = calcularSaldoUsadoPorFecha(fecha);
+        
+        console.log(`Fecha seleccionada: ${fecha}`);
+        console.log(`Saldo global total: ${saldoGlobalTotal}`);
+        console.log(`Saldo ya usado en tabla para esta fecha: ${saldoGlobalUsado}`);
+        console.log(`Saldo disponible: ${saldoGlobalTotal - saldoGlobalUsado}`);
+
+        // Actualizar el placeholder del input canastas con el saldo global disponible
+        const inputCanastas = document.querySelector("#canastas");
+        const saldoDisponible = saldoGlobalTotal - saldoGlobalUsado;
+        inputCanastas.dataset.saldoGlobalTotal = saldoGlobalTotal;
+        inputCanastas.setAttribute("max", saldoDisponible);
+        inputCanastas.setAttribute("placeholder", `Disponible: ${saldoDisponible} de ${saldoGlobalTotal}`);
 
         // Crear opciones mostrando lote_produccion + tipo
         Object.values(lotesUnicos).forEach((item) => {
@@ -163,12 +191,16 @@ elements.inputFecha.addEventListener("change", async () => {
             option.value = item.tipo;
             option.dataset.lote_produccion = item.lote_produccion;
             option.dataset.tipo = item.tipo;
-            option.textContent = `${item.lote_produccion} - ${item.tipo}`;
+            option.dataset.saldo = item.saldo; // Guardar saldo individual para info
+            option.textContent = `${item.lote_produccion} - ${item.tipo} (Saldo: ${item.saldo})`;
             elements.selecLotes.appendChild(option);
         });
 
         lotes = Object.values(lotesUnicos);
-        console.log("Lotes únicos cargados:", lotes);
+        
+        // Mostrar el saldo global en algún lugar de la UI (opcional)
+        mostrarSaldoGlobal();
+        
     } catch (err) {
         Swal.fire({
             title: "¡Error!",
@@ -183,6 +215,36 @@ elements.inputFecha.addEventListener("change", async () => {
     }
 });
 
+// Función para calcular cuánto del saldo global ya está usado en la tabla para una fecha específica
+function calcularSaldoUsadoPorFecha(fecha) {
+    let totalUsado = 0;
+    const filas = document.querySelectorAll("#tablaInfo tbody tr");
+
+    filas.forEach((row) => {
+        const fechaInput = row.querySelector('input[name="fecha_produccion[]"]');
+        const canastasInput = row.querySelector('input[name="canastas[]"]');
+
+        if (fechaInput && canastasInput) {
+            // Si la fila tiene la misma fecha, sumar sus canastas
+            if (fechaInput.value === fecha) {
+                totalUsado += parseInt(canastasInput.value) || 0;
+            }
+        }
+    });
+
+    return totalUsado;
+}
+
+// Función para mostrar el saldo global (opcional)
+function mostrarSaldoGlobal() {
+    // Si tienes un elemento en tu HTML para mostrar el saldo global
+    const saldoGlobalElement = document.getElementById("saldoGlobal");
+    if (saldoGlobalElement) {
+        saldoGlobalElement.textContent = `Saldo global disponible: ${saldoGlobalTotal - saldoGlobalUsado} de ${saldoGlobalTotal}`;
+    }
+}
+
+// Modificar elements.selecLotes.addEventListener
 elements.selecLotes.addEventListener("change", async (e) => {
     try {
         const selectedOption = e.target.options[e.target.selectedIndex];
@@ -190,8 +252,11 @@ elements.selecLotes.addEventListener("change", async (e) => {
             "data-lote_produccion",
         );
         const tipo = selectedOption?.value;
+        const saldoLote = parseInt(selectedOption?.dataset.saldo || 0);
 
-        console.log(`Seleccionado: Lote=${loteProduccion}, Tipo=${tipo}`);
+        console.log(
+            `Seleccionado: Lote=${loteProduccion}, Tipo=${tipo}, Saldo=${saldoLote}`,
+        );
 
         if (!loteProduccion || !tipo) {
             elements.selecProveedores.innerHTML = "";
@@ -208,7 +273,7 @@ elements.selecLotes.addEventListener("change", async (e) => {
         optionDefault.value = "";
         elements.selecProveedores.appendChild(optionDefault);
 
-        // Buscar el lote específico por lote_produccion Y tipo
+        // Buscar el lote específico
         const loteInfo = lotes.find(
             (item) =>
                 item.lote_produccion === loteProduccion && item.tipo === tipo,
@@ -233,7 +298,7 @@ elements.selecLotes.addEventListener("change", async (e) => {
 
         const { proveedores } = loteInfo;
 
-        // Cargar proveedores con su disponibilidad actual
+        // Cargar proveedores (solo para seleccionar)
         proveedores.forEach((item) => {
             const option = document.createElement("option");
             option.value = item.lote_proveedor;
@@ -241,45 +306,40 @@ elements.selecLotes.addEventListener("change", async (e) => {
             option.dataset.lote_produccion = loteProduccion;
             option.dataset.id = item.id_proveedor;
             option.dataset.tipo = tipo;
+            option.dataset.canastas_proveedor = item.canastas;
 
-            // Clave única para este proveedor en este lote y tipo
+            // Clave única para este proveedor
             const key = `${item.lote_proveedor}_${tipo}_${loteProduccion}`;
-
-            // Calcular canastas ya usadas en la tabla
-            const canastasUsadas = calcularCanastasUsadas(
-                item.lote_proveedor,
-                tipo,
-                loteProduccion,
-            );
-            const canastasOriginales = parseInt(item.canastas) || 0;
-
-            // Obtener disponibilidad del mapa o calcularla
-            let canastasDisponibles;
-
-            if (disponibilidadProveedores.has(key)) {
-                canastasDisponibles = disponibilidadProveedores.get(key);
-            } else {
-                canastasDisponibles = canastasOriginales - canastasUsadas;
-                disponibilidadProveedores.set(key, canastasDisponibles);
-            }
-
-            option.dataset.canastas = canastasDisponibles;
-            option.dataset.canastas_originales = canastasOriginales;
             option.dataset.key = key;
 
-            if (canastasDisponibles <= 0) {
+            // Guardar en el mapa
+            disponibilidadProveedores.set(key, item.canastas);
+
+            // Crear opción
+            if (item.canastas <= 0) {
                 option.disabled = true;
                 option.textContent = `${item.lote_proveedor} (Agotado)`;
             } else {
-                option.textContent = `${item.lote_proveedor} (Disponibles: ${canastasDisponibles})`;
+                option.textContent = `${item.lote_proveedor} (Stock: ${item.canastas})`;
             }
 
             elements.selecProveedores.appendChild(option);
         });
 
+        // Actualizar el input de canastas con el saldo GLOBAL disponible
+        const inputCanastas = document.querySelector("#canastas");
+        const saldoGlobalDisponible = saldoGlobalTotal - saldoGlobalUsado;
+
+        inputCanastas.setAttribute("max", saldoGlobalDisponible);
+        inputCanastas.setAttribute(
+            "placeholder",
+            `Máximo global: ${saldoGlobalDisponible}`,
+        );
+        inputCanastas.dataset.loteProduccion = loteProduccion;
+        inputCanastas.dataset.tipo = tipo;
+
         console.log(
-            "Estado actual de disponibilidad:",
-            Object.fromEntries(disponibilidadProveedores),
+            `Saldo global disponible: ${saldoGlobalDisponible} de ${saldoGlobalTotal}`,
         );
     } catch (err) {
         Swal.fire({
@@ -294,38 +354,7 @@ elements.selecLotes.addEventListener("change", async (e) => {
     }
 });
 
-function calcularCanastasUsadas(loteProveedor, tipo, loteProduccion) {
-    let totalUsadas = 0;
-    const filas = document.querySelectorAll("#tablaInfo tbody tr");
-
-    filas.forEach((row) => {
-        const loteProvInput = row.querySelector(
-            'input[name="lote_proveedor[]"]',
-        );
-        const tipoInput = row.querySelector('input[name="tipo[]"]');
-        const loteProdInput = row.querySelector(
-            'input[name="lote_produccion[]"]',
-        );
-
-        if (loteProvInput && tipoInput && loteProdInput) {
-            if (
-                loteProvInput.value === loteProveedor &&
-                tipoInput.value === tipo &&
-                loteProdInput.value === loteProduccion
-            ) {
-                const canastasInput = row.querySelector(
-                    'input[name="canastas[]"]',
-                );
-                if (canastasInput) {
-                    totalUsadas += parseInt(canastasInput.value) || 0;
-                }
-            }
-        }
-    });
-
-    return totalUsadas;
-}
-
+// Modificar elements.selecProveedores.addEventListener
 elements.selecProveedores.addEventListener("change", function (e) {
     const valor = e.target.value;
     if (!valor) {
@@ -336,20 +365,22 @@ elements.selecProveedores.addEventListener("change", function (e) {
     const selectedOption = e.target.options[e.target.selectedIndex];
     const loteProduccion = selectedOption.dataset.lote_produccion;
     const tipo = selectedOption.dataset.tipo;
-    const maxCanastas = parseInt(selectedOption.dataset.canastas || 0);
     const loteProveedor = selectedOption.dataset.lote_proveedor;
+
+    // Usar el saldo GLOBAL como límite
+    const saldoGlobalDisponible = saldoGlobalTotal - saldoGlobalUsado;
 
     console.log(`Proveedor seleccionado: 
         Lote Producción: ${loteProduccion}, 
         Tipo: ${tipo}, 
         Lote Proveedor: ${loteProveedor}, 
-        Canastas disponibles: ${maxCanastas}`);
+        Saldo GLOBAL disponible: ${saldoGlobalDisponible} de ${saldoGlobalTotal}`);
 
-    if (maxCanastas <= 0) {
+    if (saldoGlobalDisponible <= 0) {
         Swal.fire({
             icon: "warning",
             title: "Atención",
-            text: "Este proveedor no tiene canastillas disponibles",
+            text: "No hay canastillas disponibles en el saldo global.",
         });
         e.target.selectedIndex = 0;
         limpiarInputs();
@@ -361,8 +392,11 @@ elements.selecProveedores.addEventListener("change", function (e) {
     const cajas = document.querySelector("#cajas");
     const rechazo = document.querySelector("#rechazo");
 
-    canastas.setAttribute("max", `${maxCanastas}`);
-    canastas.setAttribute("placeholder", `Máximo: ${maxCanastas}`);
+    canastas.setAttribute("max", `${saldoGlobalDisponible}`);
+    canastas.setAttribute(
+        "placeholder",
+        `Máximo global: ${saldoGlobalDisponible}`,
+    );
     canastas.setAttribute("data-lote_produccion", `${loteProduccion}`);
     canastas.setAttribute("data-tipo", `${tipo}`);
     canastas.setAttribute("data-lote_proveedor", `${loteProveedor}`);
@@ -375,6 +409,7 @@ elements.selecProveedores.addEventListener("change", function (e) {
     rechazo.removeAttribute("readonly");
 });
 
+// Modificar elements.inputCanastas.addEventListener
 elements.inputCanastas.addEventListener("input", (e) => {
     const valor = parseInt(e.target.value) || 0;
     if (!valor) {
@@ -399,7 +434,7 @@ elements.inputCanastas.addEventListener("input", (e) => {
     if (valor > maxCanastas) {
         Swal.fire({
             title: "¡Atención!",
-            html: `No puede exceder el total de canastillas disponibles. | Máximo: <p class="badge text-danger fw-bold fs-5">${maxCanastas}</p>`,
+            html: `No puede exceder el saldo global disponible. | Disponible: <p class="badge text-danger fw-bold fs-5">${maxCanastas}</p> de ${saldoGlobalTotal} totales`,
             icon: "warning",
             showConfirmButton: true,
             allowEscapeKey: false,
@@ -421,89 +456,92 @@ elements.inputCanastas.addEventListener("input", (e) => {
     rechazo.removeAttribute("readonly");
 });
 
+// Modificar agregarFila
 function agregarFila() {
-    const loteProveedorSelect = document.querySelector(`#proveedores`);
-    const selectedProv = loteProveedorSelect.querySelector("option:checked");
+     const loteProveedorSelect = document.querySelector(`#proveedores`);
+     const selectedProv = loteProveedorSelect.querySelector("option:checked");
 
-    if (!selectedProv || !selectedProv.value) {
-        Swal.fire({
-            icon: "warning",
-            title: "Atención",
-            text: "Por favor, seleccione un proveedor.",
-        });
-        return;
-    }
+     if (!selectedProv || !selectedProv.value) {
+         Swal.fire({
+             icon: "warning",
+             title: "Atención",
+             text: "Por favor, seleccione un proveedor.",
+         });
+         return;
+     }
 
-    const id_proveedor = selectedProv?.getAttribute("data-id");
-    const fechaProduccion = document.querySelector(`#fechaProduccion`).value;
+     const id_proveedor = selectedProv?.getAttribute("data-id");
+     const fechaProduccion = document.querySelector(`#fechaProduccion`).value;
 
-    const select = document.getElementById("lotes");
-    const selectedOption = select.querySelector("option:checked");
-    const loteProduccion = selectedOption?.getAttribute("data-lote_produccion");
-    const tipo = select.value;
+     const select = document.getElementById("lotes");
+     const selectedOption = select.querySelector("option:checked");
+     const loteProduccion = selectedOption?.getAttribute(
+         "data-lote_produccion",
+     );
+     const tipo = select.value;
 
-    const campos = [`canastas`, `cajas`, `migas`, "rechazo"];
+     const campos = [`canastas`, `cajas`, `migas`, "rechazo"];
 
-    if (!validarCamposForm(campos)) {
-        Swal.fire({
-            icon: "error",
-            title: "Error",
-            text: "Por favor, complete los campos requeridos.",
-        });
-        return;
-    }
+     if (!validarCamposForm(campos)) {
+         Swal.fire({
+             icon: "error",
+             title: "Error",
+             text: "Por favor, complete los campos requeridos.",
+         });
+         return;
+     }
 
-    const canastas = parseInt(document.querySelector(`#canastas`).value) || 0;
-    const cajas = parseInt(document.querySelector(`#cajas`).value) || 0;
-    const migas = parseFloat(document.querySelector(`#migas`).value || 0);
-    const rechazo = parseFloat(document.querySelector(`#rechazo`).value || 0);
+     const canastas = parseInt(document.querySelector(`#canastas`).value) || 0;
+     const cajas = parseInt(document.querySelector(`#cajas`).value) || 0;
+     const migas = parseFloat(document.querySelector(`#migas`).value || 0);
+     const rechazo = parseFloat(document.querySelector(`#rechazo`).value || 0);
 
-    if (!canastas || canastas <= 0 || !cajas || cajas <= 0) {
-        Swal.fire({
-            icon: "warning",
-            title: "Atención",
-            text: "Ingrese datos válidos para canastas y cajas.",
-        });
-        return;
-    }
+     if (!canastas || canastas <= 0 || !cajas || cajas <= 0) {
+         Swal.fire({
+             icon: "warning",
+             title: "Atención",
+             text: "Ingrese datos válidos para canastas y cajas.",
+         });
+         return;
+     }
 
-    // Obtener disponibilidad actual
-    const disponibilidadActual = parseInt(selectedProv?.dataset.canastas || 0);
-    const key = selectedProv.dataset.key;
-    
-    // Verificar disponibilidad
-    if (canastas > disponibilidadActual) {
-        Swal.fire({
-            icon: "warning",
-            title: "Atención",
-            text: `Solo tiene ${disponibilidadActual} canastillas disponibles en este momento.`,
-        });
-        return;
-    }
-    
-    // Calcular nueva disponibilidad
-    const nuevaDisponibilidad = disponibilidadActual - canastas;
-    
-    // Actualizar el mapa GLOBAL y el dataset
-    disponibilidadProveedores.set(key, nuevaDisponibilidad);
-    selectedProv.dataset.canastas = nuevaDisponibilidad.toString();
-    
-    // Actualizar el texto de la opción
-    if (nuevaDisponibilidad <= 0) {
-        selectedProv.disabled = true;
-        selectedProv.textContent = `${selectedProv.dataset.lote_proveedor} (Agotado)`;
-    } else {
-        selectedProv.textContent = `${selectedProv.dataset.lote_proveedor} (Disponibles: ${nuevaDisponibilidad})`;
-    }
+     // Verificar contra el saldo GLOBAL
+     const inputCanastas = document.querySelector("#canastas");
 
-    // Actualizar el atributo max del input de canastas
-    const inputCanastas = document.querySelector("#canastas");
-    inputCanastas.setAttribute("max", nuevaDisponibilidad);
-    inputCanastas.setAttribute("placeholder", `Máximo: ${nuevaDisponibilidad}`);
+     // Calcular saldo disponible actualizado (considerando TODAS las filas de la fecha actual)
+     const fechaActual = document.querySelector(`#fechaProduccion`).value;
+     const saldoUsadoEnFecha = calcularSaldoUsadoPorFecha(fechaActual);
+     const saldoDisponible = saldoGlobalTotal - saldoUsadoEnFecha;
 
-    console.log("Creando nueva fila para proveedor:", selectedProv.value);
-    
-    const newRow = document.createElement("tr");
+     if (canastas > saldoDisponible) {
+         Swal.fire({
+             icon: "warning",
+             title: "Atención",
+             text: `Solo hay ${saldoDisponible} canastillas disponibles de ${saldoGlobalTotal} totales.`,
+         });
+         return;
+     }
+
+     // Actualizar saldo global usado (recalculado)
+     saldoGlobalUsado = saldoUsadoEnFecha + canastas;
+
+     // Actualizar el atributo max del input de canastas
+     const nuevoSaldoDisponible = saldoGlobalTotal - saldoGlobalUsado;
+     inputCanastas.setAttribute("max", nuevoSaldoDisponible);
+     inputCanastas.setAttribute(
+         "placeholder",
+         `Disponible: ${nuevoSaldoDisponible} de ${saldoGlobalTotal}`,
+     );
+
+     console.log("Creando nueva fila");
+     console.log(
+         `Saldo global: Total=${saldoGlobalTotal}, Usado=${saldoGlobalUsado}, Restante=${nuevoSaldoDisponible}`,
+     );
+
+     // Actualizar UI del saldo global
+     mostrarSaldoGlobal();
+
+     const newRow = document.createElement("tr");
 
     // Celdas
     const tdFechaProduccion = document.createElement("td");
@@ -553,7 +591,7 @@ function agregarFila() {
     inputLoteProveedor.name = "lote_proveedor[]";
     inputLoteProveedor.dataset.id = id_proveedor;
     inputLoteProveedor.dataset.lote_proveedor = selectedProv.value;
-    inputLoteProveedor.dataset.key = key;
+    inputLoteProveedor.dataset.key = selectedProv.dataset.key;
     tdLoteProveedor.appendChild(inputLoteProveedor);
 
     const inputTipo = document.createElement("input");
@@ -599,68 +637,136 @@ function agregarFila() {
 
     document.querySelector("#tablaInfo tbody").appendChild(newRow);
 
-    // Asegurar que el input de canastas muestre el límite correcto
+    // Limpiar inputs y resetear selección
     inputCanastas.value = "";
-    inputCanastas.setAttribute("max", nuevaDisponibilidad);
-    inputCanastas.setAttribute("placeholder", `Máximo: ${nuevaDisponibilidad}`);
-    
-    // Actualizar totales
-    updateTotales();
     limpiarInputs();
-
-    // Resetear selección de proveedor
     loteProveedorSelect.selectedIndex = 0;
 
-    console.log(`Registro creado: Lote=${loteProduccion}, Tipo=${tipo}, Lote Proveedor=${selectedProv.value}, Canastas=${canastas}`);
-    console.log(`Disponibilidad restante: ${nuevaDisponibilidad}`);
-    console.log("Estado del mapa:", Object.fromEntries(disponibilidadProveedores));
+    // Actualizar totales
+    updateTotales();
 }
 
+// Modificar eliminarFila
 function eliminarFila(btn) {
     if (!btn) return;
 
     const fila = btn.closest("tr");
-    const loteProveedor = fila.cells[1].textContent;
-    const tipo = fila.cells[2].textContent;
-    const canastasEliminadas = parseInt(fila.cells[3].textContent) || 0;
     
-    // Obtener el lote_produccion de la fila
-    const loteProdInput = fila.querySelector('input[name="lote_produccion[]"]');
-    const loteProduccion = loteProdInput ? loteProdInput.value : null;
+    // Obtener la fecha de la fila que se va a eliminar
+    const fechaInput = fila.querySelector('input[name="fecha_produccion[]"]');
+    const fechaFila = fechaInput ? fechaInput.value : null;
     
-    // Obtener la key del input oculto
-    const loteProvInput = fila.querySelector('input[name="lote_proveedor[]"]');
-    const key = loteProvInput ? loteProvInput.dataset.key : null;
-
-    // Restaurar disponibilidad en el select
-    const selectProveedores = document.querySelector("#proveedores");
-    const option = Array.from(selectProveedores.options).find(
-        (opt) => opt.value === loteProveedor && 
-                opt.dataset.tipo === tipo && 
-                opt.dataset.lote_produccion === loteProduccion
-    );
-
-    if (option) {
-        const disponibilidadActual = parseInt(option.dataset.canastas) || 0;
-        const nuevaDisponibilidad = disponibilidadActual + canastasEliminadas;
-        
-        // Actualizar dataset y texto
-        option.dataset.canastas = nuevaDisponibilidad;
-        option.disabled = false;
-        option.textContent = `${option.dataset.lote_proveedor} (Disponibles: ${nuevaDisponibilidad})`;
-        
-        // Actualizar mapa global
-        if (key) {
-            disponibilidadProveedores.set(key, nuevaDisponibilidad);
-        }
-
-        console.log(`Fila eliminada. Lote Proveedor: ${loteProveedor}, Tipo: ${tipo}, Canastas restauradas: ${canastasEliminadas}`);
-        console.log(`Nueva disponibilidad: ${nuevaDisponibilidad}`);
-    }
-
+    // Solo actualizar el saldo si la fecha de la fila es la fecha actual seleccionada
+    const fechaActual = document.querySelector(`#fechaProduccion`).value;
+    
     // Eliminar fila
     fila.remove();
+    
+    // Recalcular saldo usado para la fecha actual
+    if (fechaActual) {
+        saldoGlobalUsado = calcularSaldoUsadoPorFecha(fechaActual);
+    }
+    
+    // Actualizar el input de canastas
+    const inputCanastas = document.querySelector("#canastas");
+    const nuevoSaldoDisponible = saldoGlobalTotal - saldoGlobalUsado;
+    
+    inputCanastas.setAttribute("max", nuevoSaldoDisponible);
+    inputCanastas.setAttribute("placeholder", `Disponible: ${nuevoSaldoDisponible} de ${saldoGlobalTotal}`);
+    
+    // Actualizar UI
+    mostrarSaldoGlobal();
+    
     updateTotales();
+
+    console.log(`Fila eliminada. Saldo global: Total=${saldoGlobalTotal}, Usado=${saldoGlobalUsado}, Restante=${nuevoSaldoDisponible}`);
+}
+
+// Modificar limpiarInputs
+function limpiarInputs() {
+    const inputs = ["canastas", "cajas", "migas", "rechazo"];
+
+    inputs.forEach((id) => {
+        const input = document.getElementById(id);
+        if (input) {
+            input.value = "";
+            input.setAttribute("readonly", true);
+            input.classList.remove("is-valid", "is-invalid");
+        }
+    });
+
+    const inptCanastas = document.querySelector(`#canastas`);
+    const fechaActual = document.querySelector(`#fechaProduccion`).value;
+    
+    if (fechaActual && saldoGlobalTotal > 0) {
+        const saldoUsadoEnFecha = calcularSaldoUsadoPorFecha(fechaActual);
+        const saldoDisponible = saldoGlobalTotal - saldoUsadoEnFecha;
+        
+        inptCanastas.setAttribute("max", saldoDisponible);
+        inptCanastas.setAttribute("placeholder", `Disponible: ${saldoDisponible} de ${saldoGlobalTotal}`);
+        inptCanastas.dataset.saldoDisponible = saldoDisponible;
+    } else {
+        inptCanastas.setAttribute("max", "0");
+        inptCanastas.setAttribute("placeholder", "Seleccione fecha primero");
+    }
+}
+
+// Función para calcular cuánto del saldo total se ha usado en la tabla actual (por si la necesitas)
+function calcularSaldoUsadoEnTabla(loteProduccion, tipo) {
+    let totalUsado = 0;
+    const filas = document.querySelectorAll("#tablaInfo tbody tr");
+
+    filas.forEach((row) => {
+        const loteProdInput = row.querySelector(
+            'input[name="lote_produccion[]"]',
+        );
+        const tipoInput = row.querySelector('input[name="tipo[]"]');
+        const canastasInput = row.querySelector('input[name="canastas[]"]');
+
+        if (loteProdInput && tipoInput && canastasInput) {
+            if (
+                loteProdInput.value === loteProduccion &&
+                tipoInput.value === tipo
+            ) {
+                totalUsado += parseInt(canastasInput.value) || 0;
+            }
+        }
+    });
+
+    return totalUsado;
+}
+
+// Actualizar la función calcularCanastasUsadas (por si la necesitas)
+function calcularCanastasUsadas(loteProveedor, tipo, loteProduccion) {
+    let totalUsadas = 0;
+    const filas = document.querySelectorAll("#tablaInfo tbody tr");
+
+    filas.forEach((row) => {
+        const loteProvInput = row.querySelector(
+            'input[name="lote_proveedor[]"]',
+        );
+        const tipoInput = row.querySelector('input[name="tipo[]"]');
+        const loteProdInput = row.querySelector(
+            'input[name="lote_produccion[]"]',
+        );
+
+        if (loteProvInput && tipoInput && loteProdInput) {
+            if (
+                loteProvInput.value === loteProveedor &&
+                tipoInput.value === tipo &&
+                loteProdInput.value === loteProduccion
+            ) {
+                const canastasInput = row.querySelector(
+                    'input[name="canastas[]"]',
+                );
+                if (canastasInput) {
+                    totalUsadas += parseInt(canastasInput.value) || 0;
+                }
+            }
+        }
+    });
+
+    return totalUsadas;
 }
 
 function updateTotales() {
@@ -733,7 +839,6 @@ function obtenerInfoEmpaque() {
             return;
         }
 
-        // --- CORRECCIÓN: Guardar CADA FILA como un detalle individual ---
         const detalleItem = {
             fecha_produccion: inputs.fecha.value.trim(),
             lote_produccion: inputs.lote.value.trim(),
@@ -748,7 +853,6 @@ function obtenerInfoEmpaque() {
 
         detalleArray.push(detalleItem);
 
-        // Agrupar por lote_produccion + tipo para infoEmpaque (resumen)
         const loteKey = `${detalleItem.lote_produccion}_${detalleItem.tipo}`;
 
         if (!lotesMap.has(loteKey)) {
@@ -769,7 +873,6 @@ function obtenerInfoEmpaque() {
         loteActual.total_cajas += detalleItem.cajas;
         loteActual.total_rechazo += detalleItem.rechazo;
 
-        // Agrupar cajas por tipo
         const cajaKey = detalleItem.tipo;
         if (!cajasMap.has(cajaKey)) {
             cajasMap.set(cajaKey, {
@@ -793,7 +896,7 @@ function obtenerInfoEmpaque() {
 
     infoEmpaque = Array.from(lotesMap.values());
     cajas = Array.from(cajasMap.values());
-    detalle = detalleArray; // --- CORRECCIÓN: Guardar TODOS los detalles individuales ---
+    detalle = detalleArray;
 
     console.log("=== RESUMEN DE DATOS EMPAQUE ===");
     console.log("Lotes agrupados (resumen):", infoEmpaque);
@@ -824,36 +927,6 @@ function obtenerInfoEmpaque() {
     });
 
     return true;
-}
-
-// --- MEJORA: Función limpiarInputs actualizada ---
-function limpiarInputs() {
-    const inputs = ["canastas", "cajas", "migas", "rechazo"];
-
-    inputs.forEach((id) => {
-        const input = document.getElementById(id);
-        if (input) {
-            input.value = "";
-            input.setAttribute("readonly", true);
-            input.classList.remove("is-valid", "is-invalid");
-        }
-    });
-
-    const inptCanastas = document.querySelector(`#canastas`);
-    if (document.querySelector(`#proveedores`).selectedIndex > 0) {
-        const selectedProv = document.querySelector(
-            `#proveedores option:checked`,
-        );
-        const maxCanastas = parseInt(selectedProv?.dataset.canastas || 0);
-        inptCanastas.setAttribute("max", maxCanastas);
-        inptCanastas.setAttribute("placeholder", `Máximo: ${maxCanastas}`);
-    } else {
-        inptCanastas.setAttribute("max", "0");
-        inptCanastas.setAttribute(
-            "placeholder",
-            "Seleccione proveedor primero",
-        );
-    }
 }
 
 function validarCamposForm(campos) {

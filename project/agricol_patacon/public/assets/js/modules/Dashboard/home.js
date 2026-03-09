@@ -1,16 +1,83 @@
-import { Url } from "../../helpers/ApiUseManager.js";
 import notificationManager from "../../helpers/NotificacionesManger.js";
+import {
+    AlertManager,
+    ApiService,
+    Url,
+    fechaHoy,
+} from "../../helpers/ApiUseManager.js";
 
 var today = new Date();
 var year = today.getFullYear();
 
-const token = document.querySelector('meta[name="jwt"]').getAttribute("content");
+const API_PRODUCCION = new ApiService(Url + "/data/produccion");
+
+const token = document
+    .querySelector('meta[name="jwt"]')
+    .getAttribute("content");
 
 const url = Url + `/data/dashboard/obtener-materia/${year}`;
 
 document.getElementById("ano1").textContent = year;
 document.getElementById("ano2").textContent = year;
 document.getElementById("ano3").textContent = year;
+
+// Obtener el botón por su ID
+const btnPdf = document.getElementById("btnGenerarPDF");
+
+// Función asíncrona para generar PDF
+const generarPDF = async () => {
+    try {
+        // Mostrar indicador de carga
+        btnPdf.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i> Generando...';
+        btnPdf.disabled = true;
+        
+        // 1. Hacer la petición a tu API
+        const res = await API_PRODUCCION.get(`/performance-anual`, {
+            headers: {
+                Authorization: "Bearer " + token,
+            },
+        });
+        
+        console.log("Respuesta de la API:", res);
+        
+        // 2. Enviar los datos al backend de Laravel para generar el PDF
+        const response = await fetch("/reporte-performance-anual", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "X-CSRF-TOKEN": document
+                    .querySelector('meta[name="csrf-token"]')
+                    .getAttribute("content"),
+            },
+            body: JSON.stringify(res.data), // Enviar solo los datos de la respuesta
+        });
+
+        if (!response.ok) {
+            const err = await response.text();
+            console.error("Error backend:", err);
+            return;
+        }
+
+        // 3. Recibir y mostrar el PDF
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        window.open(url, "_blank");
+        
+    } catch (error) {
+        console.error("Error generando PDF performance anual:", error);
+    } finally {
+        // Restaurar el botón
+        btnPdf.innerHTML = '<i class="fas fa-file-pdf me-2"></i> Generar PDF';
+        btnPdf.disabled = false;
+    }
+};
+
+// Agregar el event listener al botón
+if (btnPdf) {
+    btnPdf.addEventListener("click", generarPDF);
+} else {
+    console.error("No se encontró el botón con ID 'btnGenerarPDF'");
+}
 
 const info_globlal = {
     cajasData: 0,

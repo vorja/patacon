@@ -622,7 +622,12 @@ export const getAllLotes = async (lote, idProduccion, tipo) => {
   );
 
   // Calculamos saldo de canastillas
-  const saldo = infoCajas.map((fritura) => {
+  // Filtrar solo los elementos que tienen detalle
+  const infoCajasConDetalle = infoCajas.filter(
+    (fritura) => fritura.detalle && fritura.detalle.length > 0,
+  );
+
+  const saldo = infoCajasConDetalle.map((fritura) => {
     const empaquesDelLote = proveedoresEmpaque.filter(
       (e) =>
         e.lote_produccion === fritura.detalle[0].lote_produccion &&
@@ -633,6 +638,7 @@ export const getAllLotes = async (lote, idProduccion, tipo) => {
       (acc, e) => acc + e.canastas,
       0,
     );
+
     return {
       lote_produccion: fritura.detalle[0].lote_produccion,
       lote_proveedor: fritura.detalle[0].lote_proveedor ?? "",

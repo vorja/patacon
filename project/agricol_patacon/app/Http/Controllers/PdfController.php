@@ -168,4 +168,25 @@ class PdfController extends Controller
             ], 500);
         }
     }
+
+    public function performanceAnualPDF(Request $request)
+    {
+        $data = $request->all();
+
+        try {
+            $pdf = Pdf::loadView('reportes.performance-anual', [
+                'data' => $data,
+                'fechaGeneracion' => now()->toDateTimeString(),
+            ])->setPaper('letter', 'landscape'); // Cambiado a 'letter' para tamaño carta
+
+            return $pdf->stream('reporte-performance-anual.pdf');
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => $e->getMessage(),
+                'line' => $e->getLine(),
+                'file' => $e->getFile()
+            ], 500);
+        }
+    }
+
 }

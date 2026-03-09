@@ -594,17 +594,27 @@
                     <h3><i class="fa-solid fa-chart-area"></i> Rendimiento de Producción</h3>
                 </div>
             </div>
-            <div class="row justify-content-end align-items-center g-2 mb-3 mt-4">
-                <div class="col-3">
-                    <label for="inputSearhR" class="form-label">Fecha de Producción</label>
+            <!-- MODIFICACIÓN: Botón de rendimiento general al principio y opuesto a la fecha -->
+            <div class="row justify-content-between align-items-end g-2 mb-3 mt-4">
+                <!-- Botón de Rendimiento General a la izquierda -->
+                <div class="col-auto">
+                    <button class="btn btn-success px-4 py-2 shadow-sm" id="btnRendimientoGeneral"
+                        style="background-color: #6c780d; border-color: #6c780d;">
+                        <i class="fa-solid fa-chart-line me-2"></i> Ver Rendimiento General
+                    </button>
+                </div>
 
-                    <div class="input-group mt-2">
-
-                        <input type="date" class="form-control form-control-sm shadow-sm"
-                            placeholder="Buscar Contenedor..." id="inputSearhR" aria-label="Username"
-                            aria-describedby="basic-addon1" autocomplete="off">
-                        <span class="input-group-text" id="basic-addon1"><i
-                                class="fa-solid fa-magnifying-glass"></i></span>
+                <!-- Selector de Fecha a la derecha -->
+                <div class="col-auto">
+                    <div class="d-flex align-items-center gap-2">
+                        <label for="inputSearhR" class="form-label fw-semibold mb-0 text-secondary">Fecha:</label>
+                        <div class="input-group" style="width: 250px;">
+                            <input type="date" class="form-control form-control-sm shadow-sm" id="inputSearhR"
+                                autocomplete="off">
+                            <span class="input-group-text bg-white" id="basic-addon1">
+                                <i class="fa-solid fa-calendar-day text-success"></i>
+                            </span>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -620,7 +630,7 @@
                                         <div class="fill" style="background-color:#5cad1a"></div>
                                     </div>
                                     <div class="inside-circle  fw-bold fs-3"
-                                        style="background-color:rgb(210, 241, 218); color:#61a52a"" id=" platano">
+                                        style="background-color:rgb(210, 241, 218); color:#61a52a"" id="platano">
                                     </div>
                                 </div>
                             </div>

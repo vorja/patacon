@@ -73,8 +73,11 @@ export const create = async (data) => {
       }));
       await LotesFritura.bulkCreate(lotesFritura, { transaction });
     }
+    console.log("las recepciones : ", recepciones)
 
     const idsRecepciones = Array.isArray(recepciones) ? recepciones : [recepciones];
+
+    console.log("los ids : ", idsRecepciones);
 
     if (recepciones && recepciones.length > 0) {
       await RegistroRecepcionMateriaPrima.update(

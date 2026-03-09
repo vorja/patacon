@@ -21,6 +21,7 @@ const Global_data = {
     loteProveedores: [],
     producto: [],
 };
+
 let conteo = 0;
 let tipos = {}; // Referencias Lista de Reerencias A, B, C, A, ETC..
 let infoProveedores = [];
@@ -59,24 +60,13 @@ function guardarEnSesion() {
             table.querySelectorAll("tbody tr").forEach((row) => {
                 const rowData = {
                     lote: row.querySelector(".lote")?.value || "",
-                    loteProveedor:
-                        row
-                            .querySelector(".lote")
-                            ?.getAttribute("data-loteProveedor") || "",
+                    loteProveedor: row.querySelector(".lote")?.getAttribute("data-loteProveedor") || "",
                     tipo: row.querySelector(".tipo")?.value || "",
                     peso: row.querySelector(".peso")?.value || "",
                     canastillas: row.querySelector(".canastillas")?.value || "",
-                    producto:
-                        row
-                            .querySelector(".lote")
-                            ?.getAttribute("data-producto") || "",
-                    id:
-                        row.querySelector(".lote")?.getAttribute("data-id") ||
-                        "",
-                    fecha:
-                        row
-                            .querySelector(".lote")
-                            ?.getAttribute("data-fecha") || "",
+                    producto: row.querySelector(".lote")?.getAttribute("data-producto") || "",
+                    id: row.querySelector(".lote")?.getAttribute("data-id") || "",
+                    fecha: row.querySelector(".lote")?.getAttribute("data-fecha") || "",
                 };
                 rows.push(rowData);
             });
@@ -259,11 +249,11 @@ function restaurarTablas() {
 
 // Función para limpiar sessionStorage
 function limpiarSesion() {
-    sessionStorage.removeItem(STORAGE_KEYS.INFO_PROVEEDORES);
-    sessionStorage.removeItem(STORAGE_KEYS.GLOBAL_DATA);
-    sessionStorage.removeItem(STORAGE_KEYS.TIPOS);
-    sessionStorage.removeItem(STORAGE_KEYS.TABLES_DATA);
-    sessionStorage.removeItem("fritura_processData");
+    sessionStorage.clear(STORAGE_KEYS.INFO_PROVEEDORES);
+    sessionStorage.clear(STORAGE_KEYS.GLOBAL_DATA);
+    sessionStorage.clear(STORAGE_KEYS.TIPOS);
+    sessionStorage.clear(STORAGE_KEYS.TABLES_DATA);
+    sessionStorage.clear("fritura_processData");
     console.log("sessionStorage limpiado");
 }
 
@@ -272,6 +262,8 @@ const init = async () => {
     await referencias();
     await empleado();
     await cargarProveedores();
+    
+    await obtenerRecepciones();
 
     // Cargar datos guardados
     cargarDeSesion();
@@ -399,12 +391,8 @@ function safeId(valor) {
 
 function generarLote(id, fecha_procesamiento) {
     const fechaSafe = fecha_procesamiento.replace(/-/g, "_");
-    const tipo = document.querySelector(
-        `#referencias${id}_${fechaSafe}`,
-    )?.value;
-    const variedad = document.querySelector(
-        `#variedad${id}_${fechaSafe}`,
-    )?.value;
+    const tipo = document.querySelector(`#referencias${id}_${fechaSafe}`,)?.value;
+    const variedad = document.querySelector(`#variedad${id}_${fechaSafe}`,)?.value;
 
     if (!tipo || !variedad) {
         return false;
@@ -416,15 +404,9 @@ function generarLote(id, fecha_procesamiento) {
 
 function generarLoteProv(id, fecha_procesamiento) {
     const fechaSafe = fecha_procesamiento.replace(/-/g, "_");
-    const tipo = document.querySelector(
-        `#referencias${id}_${fechaSafe}`,
-    )?.value;
-    const variedad = document.querySelector(
-        `#variedad${id}_${fechaSafe}`,
-    )?.value;
-    const materiaProcesada = document.querySelector(
-        `#materiaProcesada${id}_${fechaSafe}`,
-    );
+    const tipo = document.querySelector(`#referencias${id}_${fechaSafe}`,)?.value;
+    const variedad = document.querySelector(`#variedad${id}_${fechaSafe}`,)?.value;
+    const materiaProcesada = document.querySelector(`#materiaProcesada${id}_${fechaSafe}`,);
 
     if (!tipo || !variedad || !materiaProcesada) {
         return false;
@@ -441,18 +423,10 @@ function agregarFila(id, fecha_procesamiento) {
 
     const lote = generarLote(id, fecha_procesamiento);
     const loteProveedor = generarLoteProv(id, fecha_procesamiento);
-    const tipo = document.querySelector(
-        `#referencias${id}_${fechaSafe}`,
-    )?.value;
-    const producto = document
-        .querySelector(`#materiaProcesada${id}_${fechaSafe}`)
-        ?.getAttribute("data-producto");
-    const canastillas = parseInt(
-        document.querySelector(`#canastillas${id}_${fechaSafe}`)?.value,
-    );
-    const peso = parseFloat(
-        document.querySelector(`#pesoKg${id}_${fechaSafe}`)?.value,
-    );
+    const tipo = document.querySelector(`#referencias${id}_${fechaSafe}`,)?.value;
+    const producto = document.querySelector(`#materiaProcesada${id}_${fechaSafe}`)?.getAttribute("data-producto");
+    const canastillas = parseInt(document.querySelector(`#canastillas${id}_${fechaSafe}`)?.value,);
+    const peso = parseFloat(document.querySelector(`#pesoKg${id}_${fechaSafe}`)?.value,);
 
     const campos = [
         `canastillas${id}_${fechaSafe}`,
@@ -527,9 +501,7 @@ function agregarFila(id, fecha_procesamiento) {
     </tr>
     `;
 
-    document
-        .getElementById(`tablaInfo${id}_${fechaSafe}`)
-        .insertAdjacentHTML("beforeend", fila);
+    document.getElementById(`tablaInfo${id}_${fechaSafe}`).insertAdjacentHTML("beforeend", fila);
 
     limpiarInputs(id, fecha_procesamiento);
     crearBloqueTipo(tipo, id, fecha_procesamiento);
@@ -544,17 +516,14 @@ function crearBloqueTipo(tipo, id, fecha_procesamiento) {
     const tipoSafe = safeId(tipo);
     const fechaSafe = fecha_procesamiento.replace(/-/g, "_");
 
-    const containerVar = document.getElementById(
-        `contenedorVar${id}_${fechaSafe}`,
-    );
+    const containerVar = document.getElementById(`contenedorVar${id}_${fechaSafe}`,);
+
     if (!containerVar) return;
 
-    const container = containerVar.querySelector(
-        `#contenedor${tipoSafe}_${fechaSafe}`,
-    );
+    const container = containerVar.querySelector(`#contenedor${tipoSafe}_${fechaSafe}`,);
+
     if (container) {
-        if (container.querySelectorAll(`#col_Total_${tipoSafe}_${fechaSafe}`))
-            return;
+        if (container.querySelectorAll(`#col_Total_${tipoSafe}_${fechaSafe}`))  return;
     }
 
     const divContenedor = document.createElement("div");
@@ -573,8 +542,7 @@ function crearBloqueTipo(tipo, id, fecha_procesamiento) {
 
     const input = document.createElement("input");
     input.type = "number";
-    input.className =
-        "inputTotal form-control rounded-pill shadow-sm text-center text-dark fw-semibold numeric";
+    input.className = "inputTotal form-control rounded-pill shadow-sm text-center text-dark fw-semibold numeric";
     input.placeholder = `Total: ${tipoSafe}`;
     input.id = `input_Total_${tipoSafe}_${fechaSafe}`;
     input.setAttribute("name", "cantidad[]");
@@ -601,8 +569,7 @@ function crearBloqueTipo(tipo, id, fecha_procesamiento) {
 
     const inputBajada = document.createElement("input");
     inputBajada.type = "number";
-    inputBajada.className =
-        "inputBajadas form-control rounded-pill shadow-sm text-center text-dark fw-semibold numeric";
+    inputBajada.className = "inputBajadas form-control rounded-pill shadow-sm text-center text-dark fw-semibold numeric";
     inputBajada.placeholder = `Bajadas: ${tipoSafe}`;
     inputBajada.id = `input_Bajadas_${tipoSafe}_${fechaSafe}`;
     inputBajada.setAttribute("name", "cantidad[]");
@@ -621,8 +588,7 @@ function crearBloqueTipo(tipo, id, fecha_procesamiento) {
 
     const inputPeso = document.createElement("input");
     inputPeso.type = "hidden";
-    inputPeso.className =
-        "inputKg form-control rounded-pill shadow-sm text-center text-dark fw-semibold numeric";
+    inputPeso.className = "inputKg form-control rounded-pill shadow-sm text-center text-dark fw-semibold numeric";
     inputPeso.id = `input_Kg_${tipoSafe}_${fechaSafe}`;
     inputPeso.setAttribute("name", "peso[]");
     inputPeso.setAttribute("data-tipo", `${tipoSafe}`);
@@ -644,8 +610,7 @@ function crearBloqueTipo(tipo, id, fecha_procesamiento) {
     const inputMigas = document.createElement("input");
     inputMigas.type = "number";
     inputMigas.placeholder = `Migas: ${tipoSafe}`;
-    inputMigas.className =
-        "inputMigas form-control rounded-pill shadow-sm text-center text-dark fw-semibold numeric";
+    inputMigas.className = "inputMigas form-control rounded-pill shadow-sm text-center text-dark fw-semibold numeric";
     inputMigas.id = `input_Migas_${tipoSafe}_${fechaSafe}`;
     inputMigas.setAttribute("name", "mgias[]");
     inputMigas.setAttribute("data-tipo", `${tipoSafe}`);
@@ -671,8 +636,7 @@ function crearBloqueTipo(tipo, id, fecha_procesamiento) {
 
     const inputRechazo = document.createElement("input");
     inputRechazo.type = "number";
-    inputRechazo.className =
-        "inputRechazo form-control rounded-pill shadow-sm text-center text-dark fw-semibold numeric";
+    inputRechazo.className = "inputRechazo form-control rounded-pill shadow-sm text-center text-dark fw-semibold numeric";
     inputRechazo.placeholder = `Cantidad kg`;
     inputRechazo.id = `input_Rechazo_${tipoSafe}_${fechaSafe}`;
     inputRechazo.setAttribute("name", "rechazo[]");
@@ -691,9 +655,7 @@ function crearBloqueTipo(tipo, id, fecha_procesamiento) {
 
 function syncInputs(id, fecha_procesamiento) {
     const fechaSafe = fecha_procesamiento.replace(/-/g, "_");
-    const tableRows = document.querySelectorAll(
-        `#tablaInfo${id}_${fechaSafe} tbody tr`,
-    );
+    const tableRows = document.querySelectorAll(`#tablaInfo${id}_${fechaSafe} tbody tr`,);
     const tiposElegidos = [];
 
     if (tableRows.length > 0) {
@@ -706,8 +668,7 @@ function syncInputs(id, fecha_procesamiento) {
     const setElegidos = new Set(tiposElegidos);
 
     // Eliminar contenedores de tipos que ya no están en la tabla
-    document
-        .querySelectorAll(`#contenedorVar${id}_${fechaSafe} [id^="contenedor"]`)
+    document.querySelectorAll(`#contenedorVar${id}_${fechaSafe} [id^="contenedor"]`)
         .forEach((container) => {
             const tipoEnContainer = container.id
                 .replace(`contenedor`, "")
@@ -724,9 +685,8 @@ function validarProceso(id, fecha_procesamiento) {
     const fechaSafe = fecha_procesamiento.replace(/-/g, "_");
     let todosLlenos = true;
 
-    const tableRows = document.querySelectorAll(
-        `#tablaInfo${id}_${fechaSafe} tbody tr`,
-    );
+    const tableRows = document.querySelectorAll(`#tablaInfo${id}_${fechaSafe} tbody tr`,);
+
     const tiposElegidos = [];
 
     if (tableRows.length > 0) {
@@ -739,20 +699,13 @@ function validarProceso(id, fecha_procesamiento) {
     const setElegidos = new Set(tiposElegidos);
 
     setElegidos.forEach((ref) => {
-        const container = document.getElementById(
-            `contenedor${ref}_${fechaSafe}`,
-        );
+        const container = document.getElementById(`contenedor${ref}_${fechaSafe}`,);
+
         if (!container) return;
 
-        const migas = container.querySelector(
-            `#input_Migas_${ref}_${fechaSafe}`,
-        );
-        const rechazo = container.querySelector(
-            `#input_Rechazo_${ref}_${fechaSafe}`,
-        );
-        const bajadas = container.querySelector(
-            `#input_Bajadas_${ref}_${fechaSafe}`,
-        );
+        const migas = container.querySelector(`#input_Migas_${ref}_${fechaSafe}`,);
+        const rechazo = container.querySelector(`#input_Rechazo_${ref}_${fechaSafe}`,);
+        const bajadas = container.querySelector(`#input_Bajadas_${ref}_${fechaSafe}`,);
 
         if (migas) {
             if (isNaN(parseFloat(migas.value))) {
@@ -794,16 +747,14 @@ function variableProcesoProv(id, fecha_procesamiento) {
     let rechazo = 0;
     let bajadas = 0;
 
-    const containerVar = document.getElementById(
-        `contenedorVar${id}_${fechaSafe}`,
-    );
+    const containerVar = document.getElementById(`contenedorVar${id}_${fechaSafe}`,);
+
     if (!containerVar) {
         return { migas, rechazo, bajadas };
     }
 
-    const tableRows = document.querySelectorAll(
-        `#tablaInfo${id}_${fechaSafe} tbody tr`,
-    );
+    const tableRows = document.querySelectorAll(`#tablaInfo${id}_${fechaSafe} tbody tr`,);
+
     const tiposElegidos = [];
 
     tableRows.forEach((row) => {
@@ -817,20 +768,12 @@ function variableProcesoProv(id, fecha_procesamiento) {
 
     setElegidos.forEach((ref) => {
         const tipoSafe = safeId(ref);
-        const container = containerVar.querySelector(
-            `#contenedor${tipoSafe}_${fechaSafe}`,
-        );
+        const container = containerVar.querySelector(`#contenedor${tipoSafe}_${fechaSafe}`,);
 
         if (container) {
-            const inputMigas = container.querySelector(
-                `#input_Migas_${tipoSafe}_${fechaSafe}`,
-            );
-            const inputRechazo = container.querySelector(
-                `#input_Rechazo_${tipoSafe}_${fechaSafe}`,
-            );
-            const inputBajadas = container.querySelector(
-                `#input_Bajadas_${tipoSafe}_${fechaSafe}`,
-            );
+            const inputMigas = container.querySelector(`#input_Migas_${tipoSafe}_${fechaSafe}`,);
+            const inputRechazo = container.querySelector(`#input_Rechazo_${tipoSafe}_${fechaSafe}`,);
+            const inputBajadas = container.querySelector(`#input_Bajadas_${tipoSafe}_${fechaSafe}`,);
 
             if (inputMigas) {
                 migas += parseFloat(inputMigas.value) || 0;
@@ -857,50 +800,39 @@ function updateTotal(id, fecha_procesamiento) {
 
     if (!id) return false;
 
-    const containerVar = document.getElementById(
-        `contenedorVar${id}_${fechaSafe}`,
-    );
+    const containerVar = document.getElementById(`contenedorVar${id}_${fechaSafe}`,);
+
     if (!containerVar) return false;
 
     document
         .querySelectorAll(`#tablaInfo${id}_${fechaSafe} tbody tr`)
         .forEach((fila) => {
             const tipo = fila.querySelector(".tipo")?.value;
-            const valor =
-                parseFloat(fila.querySelector(".canastillas")?.value) || 0;
-            const valorPeso =
-                parseFloat(fila.querySelector(".peso")?.value) || 0;
+            const valor = parseFloat(fila.querySelector(".canastillas")?.value) || 0;
+            const valorPeso = parseFloat(fila.querySelector(".peso")?.value) || 0;
 
             if (tipo) {
                 totalesPorTipo[tipo] = (totalesPorTipo[tipo] || 0) + valor;
                 totalCanastilllas += valor;
-                totalesPesoPorTipo[tipo] =
-                    (totalesPesoPorTipo[tipo] || 0) + valorPeso;
+                totalesPesoPorTipo[tipo] = (totalesPesoPorTipo[tipo] || 0) + valorPeso;
             }
         });
 
     // Actualizamos cada input de totales según su data-tipo
     for (const tipo in totalesPorTipo) {
-        const container = containerVar.querySelector(
-            `#contenedor${safeId(tipo)}_${fechaSafe}`,
-        );
+        const container = containerVar.querySelector(`#contenedor${safeId(tipo)}_${fechaSafe}`,);
+
         if (!container) continue;
 
-        const inputTotal = container.querySelector(
-            `#input_Total_${safeId(tipo)}_${fechaSafe}`,
-        );
-        const inputBajadas = container.querySelector(
-            `#input_Bajadas_${safeId(tipo)}_${fechaSafe}`,
-        );
+        const inputTotal = container.querySelector(`#input_Total_${safeId(tipo)}_${fechaSafe}`,);
+        const inputBajadas = container.querySelector(`#input_Bajadas_${safeId(tipo)}_${fechaSafe}`,);
 
         if (inputTotal) {
             inputTotal.value = totalesPorTipo[tipo];
 
             const bajadasValue = parseFloat(inputBajadas?.value) || 0;
-            const totalConBajadas = Math.max(
-                0,
-                totalesPorTipo[tipo] - bajadasValue,
-            );
+            const totalConBajadas = Math.max(0,totalesPorTipo[tipo] - bajadasValue,);
+
             inputTotal.value = totalConBajadas;
 
             valorRestarPorTipo[tipo] = totalConBajadas * 1.5;
@@ -908,17 +840,12 @@ function updateTotal(id, fecha_procesamiento) {
     }
 
     for (const tipo in totalesPesoPorTipo) {
-        const container = containerVar.querySelector(
-            `#contenedor${safeId(tipo)}_${fechaSafe}`,
-        );
+        const container = containerVar.querySelector(`#contenedor${safeId(tipo)}_${fechaSafe}`,);
+
         if (!container) continue;
 
-        const inputKg = container.querySelector(
-            `#input_Kg_${safeId(tipo)}_${fechaSafe}`,
-        );
-        const inputBajadas = container.querySelector(
-            `#input_Bajadas_${safeId(tipo)}_${fechaSafe}`,
-        );
+        const inputKg = container.querySelector(`#input_Kg_${safeId(tipo)}_${fechaSafe}`,);
+        const inputBajadas = container.querySelector(`#input_Bajadas_${safeId(tipo)}_${fechaSafe}`,);
 
         if (inputKg) {
             const pesoOriginal = Number(totalesPesoPorTipo[tipo]);
@@ -935,12 +862,8 @@ function updateTotal(id, fecha_procesamiento) {
     }
 
     // Sumamos el total de canastillas
-    const canastillasProd = document.querySelector(
-        `#canastillasProd${id}_${fechaSafe}`,
-    );
-    const materiaProcesada = document.querySelector(
-        `#materiaProcesada${id}_${fechaSafe}`,
-    );
+    const canastillasProd = document.querySelector(`#canastillasProd${id}_${fechaSafe}`,);
+    const materiaProcesada = document.querySelector(`#materiaProcesada${id}_${fechaSafe}`,);
 
     if (canastillasProd) {
         canastillasProd.textContent = totalCanastilllas;
@@ -992,31 +915,18 @@ function obtenerInfoProvedor(id, fecha_procesamiento) {
         fecha_procesamiento,
     );
 
-    const proveedorNombre = document.querySelector(
-        `#proveedorNombre${id}_${fechaSafe}`,
-    );
-    const materiaProcesada = document.querySelector(
-        `#materiaProcesada${id}_${fechaSafe}`,
-    );
-    const canastillasProd = document.querySelector(
-        `#canastillasProd${id}_${fechaSafe}`,
-    );
-    const tiempoInicio = document.querySelector(
-        `#tiempoInicio${id}_${fechaSafe}`,
-    );
-    const tiempoFinal = document.querySelector(
-        `#tiempoFinal${id}_${fechaSafe}`,
-    );
+    const proveedorNombre = document.querySelector(`#proveedorNombre${id}_${fechaSafe}`,);
+    const materiaProcesada = document.querySelector(`#materiaProcesada${id}_${fechaSafe}`,);
+    const canastillasProd = document.querySelector(`#canastillasProd${id}_${fechaSafe}`,);
+    const tiempoInicio = document.querySelector(`#tiempoInicio${id}_${fechaSafe}`,);
+    const tiempoFinal = document.querySelector(`#tiempoFinal${id}_${fechaSafe}`,);
     const tiempo = document.querySelector(`#tiempo${id}_${fechaSafe}`);
-    const temperatura = document.querySelector(
-        `#temperatura${id}_${fechaSafe}`,
-    );
+    const temperatura = document.querySelector(`#temperatura${id}_${fechaSafe}`,);
 
     let dataProveedor = {
         proveedor: proveedorNombre?.textContent || "",
         info: {
-            id_recepcion:
-                materiaProcesada?.getAttribute("data-recepcion") || "",
+            id_recepcion: materiaProcesada?.getAttribute("data-recepcion") || "",
             id_proveedor: id,
             fecha_procesamiento: fecha_procesamiento,
             canastas: parseInt(canastillasProd?.textContent.trim()) || 0,
@@ -1093,9 +1003,8 @@ function obtenerDetaleProveeedor(id, fecha_procesamiento) {
     let lotesProveedor = [];
     let detalles = [];
 
-    const filas = document.querySelectorAll(
-        `#tablaInfo${id}_${fechaSafe} tbody tr`,
-    );
+    const filas = document.querySelectorAll(`#tablaInfo${id}_${fechaSafe} tbody tr`,);
+
     if (!filas || filas.length == 0) {
         Swal.fire({
             title: "¡Error!",
@@ -1168,26 +1077,15 @@ function obtenerDetaleProveeedor(id, fecha_procesamiento) {
 
     setElegidos.forEach((tipo) => {
         const tipoSafe = safeId(tipo);
-        const contenedor = containerVar.querySelector(
-            `#contenedor${tipoSafe}_${fechaSafe}`,
-        );
+        const contenedor = containerVar.querySelector(`#contenedor${tipoSafe}_${fechaSafe}`,);
+
         if (!contenedor) return;
 
-        const inputTotales = contenedor.querySelector(
-            `#input_Total_${tipoSafe}_${fechaSafe}`,
-        );
-        const inputKg = contenedor.querySelector(
-            `#input_Kg_${tipoSafe}_${fechaSafe}`,
-        );
-        const inputBajadas = contenedor.querySelector(
-            `#input_Bajadas_${tipoSafe}_${fechaSafe}`,
-        );
-        const inputMigas = contenedor.querySelector(
-            `#input_Migas_${tipoSafe}_${fechaSafe}`,
-        );
-        const inputRechazo = contenedor.querySelector(
-            `#input_Rechazo_${tipoSafe}_${fechaSafe}`,
-        );
+        const inputTotales = contenedor.querySelector(`#input_Total_${tipoSafe}_${fechaSafe}`,);
+        const inputKg = contenedor.querySelector(`#input_Kg_${tipoSafe}_${fechaSafe}`,);
+        const inputBajadas = contenedor.querySelector(`#input_Bajadas_${tipoSafe}_${fechaSafe}`,);
+        const inputMigas = contenedor.querySelector(`#input_Migas_${tipoSafe}_${fechaSafe}`,);
+        const inputRechazo = contenedor.querySelector(`#input_Rechazo_${tipoSafe}_${fechaSafe}`,);
 
         variables.push({
             lote_produccion: lotesUnicos[index] ?? "",
@@ -1259,12 +1157,8 @@ function updateProceso() {
 
 function limpiarInputs(id, fecha_procesamiento) {
     const fechaSafe = fecha_procesamiento.replace(/-/g, "_");
-    const canastillasInput = document.querySelector(
-        `input[id="canastillas${id}_${fechaSafe}"][data-id="${id}"]`,
-    );
-    const pesoKgInput = document.querySelector(
-        `input[id="pesoKg${id}_${fechaSafe}"][data-id="${id}"]`,
-    );
+    const canastillasInput = document.querySelector(`input[id="canastillas${id}_${fechaSafe}"][data-id="${id}"]`,);
+    const pesoKgInput = document.querySelector(`input[id="pesoKg${id}_${fechaSafe}"][data-id="${id}"]`,);
 
     if (canastillasInput) canastillasInput.value = "";
     if (pesoKgInput) pesoKgInput.value = "";
@@ -1297,15 +1191,6 @@ function validarCamposForm(campos) {
     return todosLlenos;
 }
 
-function obtenerRecepciones() {
-    let proveedores = document.querySelectorAll(".infoProveedor");
-    let datos = [];
-    proveedores.forEach((input) => {
-        const recepcion = input.getAttribute("data-recepcion");
-        if (recepcion) datos.push(parseInt(recepcion));
-    });
-    return datos;
-}
 
 function obtenerLotes() {
     const lotesMap = new Map();
@@ -1327,14 +1212,11 @@ function obtenerLotes() {
             if (lotesMap.has(key)) {
                 const existente = lotesMap.get(key);
                 existente.canastas += canastillas;
-                existente.cantidad_kg = (
-                    parseFloat(existente.cantidad_kg) + peso
-                ).toFixed(2);
+                existente.cantidad_kg = (parseFloat(existente.cantidad_kg) + peso).toFixed(2);
             } else {
                 lotesMap.set(key, {
                     lote_produccion: lote,
-                    lote_proveedor:
-                        loteInput.getAttribute("data-loteProveedor") || "",
+                    lote_proveedor: loteInput.getAttribute("data-loteProveedor") || "",
                     tipo: tipo,
                     canastas: canastillas,
                     cantidad_kg: peso.toFixed(2),
@@ -1349,6 +1231,7 @@ function obtenerLotes() {
 }
 
 async function enviarFormulario() {
+    limpiarSesion();
     const dataLotes = obtenerLotes();
 
     const camposObligatorios = [
@@ -1431,7 +1314,7 @@ async function enviarFormulario() {
         lotes: dataLotes,
     };
 
-    console.log(datos);
+    console.log("los datos a enviar : ",datos);
 
     try {
         const respuesta = await apiFritura.post("/crear", datos, {
@@ -1440,6 +1323,8 @@ async function enviarFormulario() {
                 Authorization: "Bearer " + token,
             },
         });
+
+            console.log("los datos recibidos : ", respuesta);
 
         if (respuesta.success) {
             // Limpiar sessionStorage después de enviar exitosamente
@@ -1630,9 +1515,7 @@ const rendereizarProveedores = (proveedores) => {
 
         const accordionCollapse = document.createElement("div");
         accordionCollapse.id = `collapse${conteo}_${fechaSafe}`;
-        accordionCollapse.className = `accordion-collapse collapse ${
-            conteo === 1 ? "show" : ""
-        }`;
+        accordionCollapse.className = `accordion-collapse collapse ${conteo === 1 ? "show" : ""}`;
         accordionCollapse.setAttribute(
             "aria-labelledby",
             `heading${conteo}_${fechaSafe}`,
@@ -1723,6 +1606,9 @@ const rendereizarProveedores = (proveedores) => {
     contenedor.appendChild(accordionContainer);
 };
 
+// Variable global para guardar los arrays de ids
+let idsRecepcionesGlobal = [];
+
 async function cargarProveedores() {
     try {
         let ide = document.getElementById("idEncargo")?.value;
@@ -1747,6 +1633,17 @@ async function cargarProveedores() {
         }
 
         const { proveedores } = response.data;
+        
+        // GUARDAR TODOS LOS IDs DE LOS ARRAYS "ids"
+        idsRecepcionesGlobal = [];
+        proveedores.forEach(proveedor => {
+            if (proveedor.ids && Array.isArray(proveedor.ids)) {
+                idsRecepcionesGlobal.push(...proveedor.ids);
+            }
+        });
+        
+        console.log("IDs de recepciones guardados:", idsRecepcionesGlobal);
+
         if (proveedores && proveedores.length > 0) {
             rendereizarProveedores(proveedores);
             referenciasList(tipos, proveedores);
@@ -1754,6 +1651,11 @@ async function cargarProveedores() {
     } catch (error) {
         console.error("Error cargando proveedores:", error);
     }
+}
+
+function obtenerRecepciones() {
+    // RETORNAR TODOS LOS IDs GUARDADOS
+    return idsRecepcionesGlobal;
 }
 
 const referencias = async () => {
@@ -1788,9 +1690,7 @@ const referenciasList = (referencias, proveedores) => {
         let selectReferencias = document.querySelector(`#${selectId}`);
 
         if (!selectReferencias) {
-            selectReferencias = document.querySelector(
-                `#referencias${proveedor.id_proveedor}`,
-            );
+            selectReferencias = document.querySelector(`#referencias${proveedor.id_proveedor}`,);
         }
 
         if (selectReferencias) {

@@ -39,20 +39,416 @@ const cargarSobrante = async () => {
     console.log("este es : ", response);
 };
 
+
+// ============================================
+// FUNCIÓN CORREGIDA PARA RENDIMIENTO GENERAL
+// ============================================
+
+// Función para cargar el rendimiento general de todos los días
+const cargarRendimientoGeneral = async () => {
+    try {
+        // Mostrar loading
+        Swal.fire({
+            title: 'Cargando...',
+            text: 'Obteniendo rendimiento general de todos los días',
+            allowOutsideClick: false,
+            didOpen: () => {
+                Swal.showLoading();
+            }
+        });
+
+        // Obtener la orden actual
+        if (!ordenA) {
+            Swal.close();
+            Swal.fire({
+                icon: 'warning',
+                title: 'Sin orden seleccionada',
+                text: 'Por favor seleccione una orden de producción primero'
+            });
+            return;
+        }
+
+        // Llamar al endpoint de rendimiento general con la orden actual
+        const res = await API_PRODUCCION.get(`/performance-general/${ordenA}`, {
+            headers: {
+                Authorization: "Bearer " + token,
+            },
+        });
+
+        Swal.close();
+
+        if (!res.success) {
+            alerts.show(res);
+            return false;
+        }
+
+        // Acceder a los datos
+        const responseData = res.data;
+        
+        const {
+            data,
+            rechazo,
+            rechazoTotal,
+            rendimientoFritura,
+            rendimientoHFritura,
+            rendimientoEmpaque,
+            rendimientoProveedores,
+            cajas,
+            totalCanastillas,
+            dataProveedor,
+            totales,
+            metadata
+        } = responseData;
+
+        if (!data || data.length === 0) {
+            Swal.fire({
+                icon: 'info',
+                title: 'Sin datos',
+                text: 'No hay datos de rendimiento general disponibles'
+            });
+            return;
+        }
+
+        // Limpiar tablas existentes
+        if ($.fn.DataTable.isDataTable("#tablaCajas")) {
+            $("#tablaCajas").DataTable().destroy();
+            $("#tablaCajas tbody").empty();
+        }
+        if ($.fn.DataTable.isDataTable("#tablaProveedores")) {
+            $("#tablaProveedores").DataTable().destroy();
+            $("#tablaProveedores tbody").empty();
+        }
+        if ($.fn.DataTable.isDataTable("#tablaCanastasProveedor")) {
+            $("#tablaCanastasProveedor").DataTable().destroy();
+            $("#tablaCanastasProveedor tbody").empty();
+        }
+
+        // Renderizar tabla de cajas
+        renderDataTableCaja(cajas);
+
+        // ============================================
+        // CORRECCIÓN: Transformar datos de proveedores para la tabla
+        // ============================================
+        let proveedoresTransformados = [];
+        
+        if (rendimientoProveedores && rendimientoProveedores.length > 0) {
+            proveedoresTransformados = rendimientoProveedores.map(prov => ({
+                proveedor: prov.proveedor,
+                // Usar totalMateriaRecibida para RECEPCIÓN
+                materia: prov.totalMateriaRecibida || 0,
+                // Usar totalMateriaProcesada para CORTE
+                totalMateria: prov.totalMateriaProcesada || 0,
+                // Usar rendimiento directamente
+                rendimiento: prov.rendimiento || 0
+            }));
+        }
+
+        // Renderizar tabla de proveedores con los datos transformados
+        if (proveedoresTransformados.length > 0) {
+            renderDataTableProv(proveedoresTransformados);
+        } else {
+            // Si no hay datos, mostrar tabla vacía
+            $("#tablaProveedores tbody").html(`
+                <tr>
+                    <td colspan="4" class="text-center">No hay información de proveedores disponible</td>
+                </tr>
+            `);
+        }
+
+        // Renderizar tabla de detalle de proveedores
+        renderDataTableDetalleProv(dataProveedor);
+        
+        // Dibujar gráfica de rechazo
+        if (rechazo && rechazo.length > 0) {
+            drawChart(rechazo, "graficaRechazo");
+        }
+
+        // Asignar información a los círculos de rendimiento
+        $("#platano").text(`${data[0]?.RendPlatano ?? 0}%`);
+        $("#fritura").text(`${data[0]?.RendFritura ?? 0}%`);
+        $("#hfritura").text(`${data[0]?.RendHFritura ?? 0}%`);
+        $("#empaque").text(`${data[0]?.RendEmpaque ?? 0}%`);
+        $("#total").text(`${data[0]?.RendTotal ?? 0}%`);
+        
+        // Rechazo total
+        $("#rechazoTotal").text(`${rechazoTotal?.value ?? 0} Kg`);
+
+        // Asignar información a las tarjetas de totales
+        const hfrituraData = rendimientoHFritura && rendimientoHFritura.length > 0 ? rendimientoHFritura[0] : null;
+        const frituraData = rendimientoFritura && rendimientoFritura.length > 0 ? rendimientoFritura[0] : null;
+
+        $("#materiaPrima").text(
+            `${new Intl.NumberFormat("es-CL").format(hfrituraData?.totalMateria ?? 0)} kg`
+        );
+        $("#materiaCorte").text(
+            `${new Intl.NumberFormat("es-CL").format(frituraData?.totalCorte ?? 0)} kg`
+        );
+        $("#materiaProcesada").text(
+            `${new Intl.NumberFormat("es-CL").format(hfrituraData?.totalFritura ?? 0)} Kg`
+        );
+        $("#canastillas").text(`${totalCanastillas ?? 0}`);
+
+        // Mostrar mensaje de éxito
+        let mensajeDias = '';
+        if (metadata) {
+            mensajeDias = `
+                <div class="text-start mt-3 p-3 bg-light rounded">
+                    <p class="mb-1"><strong>📊 Estadísticas del resumen:</strong></p>
+                    <p class="mb-1">• Días con datos: ${metadata.totalDiasConDatos || 0} de ${metadata.totalDias || 0}</p>
+                    <p class="mb-1">• Rango: ${metadata.rangoFechas?.desde || 'N/A'} - ${metadata.rangoFechas?.hasta || 'N/A'}</p>
+                </div>
+            `;
+        }
+
+        Swal.fire({
+            icon: 'success',
+            title: '✅ Rendimiento General',
+            html: `
+                <div class="text-center">
+                    <p class="fw-bold fs-4 mb-2">Resumen de Producción</p>
+                    <div class="row mt-3">
+                        <div class="col-6 text-end">
+                            <span class="text-secondary">Rendimiento Plátano:</span>
+                        </div>
+                        <div class="col-6 text-start">
+                            <span class="badge bg-success fs-6">${data[0]?.RendPlatano ?? 0}%</span>
+                        </div>
+                        
+                        <div class="col-6 text-end mt-2">
+                            <span class="text-secondary">Rendimiento Fritura:</span>
+                        </div>
+                        <div class="col-6 text-start mt-2">
+                            <span class="badge bg-info fs-6">${data[0]?.RendFritura ?? 0}%</span>
+                        </div>
+                        
+                        <div class="col-6 text-end mt-2">
+                            <span class="text-secondary">Rendimiento Total:</span>
+                        </div>
+                        <div class="col-6 text-start mt-2">
+                            <span class="badge bg-danger fs-6">${data[0]?.RendTotal ?? 0}%</span>
+                        </div>
+                    </div>
+                    ${mensajeDias}
+                </div>
+            `,
+            confirmButtonText: 'Aceptar',
+            confirmButtonColor: '#6c780d'
+        });
+
+    } catch (error) {
+        Swal.close();
+        console.error("Error al cargar rendimiento general:", error);
+        Swal.fire({
+            icon: "error",
+            title: "Error",
+            text: error.message || "Error al cargar el rendimiento general",
+            showConfirmButton: true
+        });
+    }
+};
+
+// También necesitas modificar la función renderDataTableProv para que maneje valores nulos
+// Si no puedes modificar esa función, aquí tienes una versión adaptada:
+
+const renderDataTableProvConNulos = (data) => {
+    try {
+        // Verificar si la tabla ya existe y destruirla
+        if ($.fn.DataTable.isDataTable("#tablaProveedores")) {
+            $("#tablaProveedores").DataTable().destroy();
+        }
+
+        // Limpiar tbody
+        $("#tablaProveedores tbody").empty();
+
+        // Si no hay datos, mostrar mensaje
+        if (!data || data.length === 0) {
+            $("#tablaProveedores tbody").html(`
+                <tr>
+                    <td colspan="4" class="text-center">No hay información de proveedores disponible</td>
+                </tr>
+            `);
+            return;
+        }
+
+        // Inicializar DataTable
+        $(`#tablaProveedores`).DataTable({
+            data: data,
+            searching: false,
+            destroy: true,
+            serverSide: false,
+            responsive: true,
+            deferRender: true,
+            dom: "Bfrtip",
+            columns: [
+                { data: "proveedor" },
+                { data: "materia" },
+                { data: "totalMateria" },
+                { data: "rendimiento" },
+            ],
+            columnDefs: [
+                {
+                    targets: 0,
+                    createdCell: function (td, cellData) {
+                        $(td).html(`<span class="text-I">${cellData || 'N/A'}</span>`);
+                    },
+                },
+                {
+                    targets: 1,
+                    createdCell: function (td, cellData) {
+                        const valor = cellData || 0;
+                        $(td).html(
+                            `<span class="text-O">${new Intl.NumberFormat("es-CL").format(valor)} Kg</span>`,
+                        );
+                    },
+                },
+                {
+                    targets: 2,
+                    createdCell: function (td, cellData) {
+                        const valor = cellData || 0;
+                        $(td).html(
+                            `<span class="text-O">${new Intl.NumberFormat("es-CL").format(valor)} Kg</span>`,
+                        );
+                    },
+                },
+                {
+                    targets: 3,
+                    createdCell: function (td, cellData) {
+                        const valor = cellData || 0;
+                        $(td).html(`<span class="text-N">${valor}%</span>`);
+                    },
+                },
+            ],
+            drawCallback: function () {
+                let api = this.api();
+                let numRegistros = api.rows({ filter: "applied" }).count();
+                let tableWrapper = $(api.table().container());
+                if (numRegistros <= 6) {
+                    tableWrapper.find(".dataTables_paginate").hide();
+                } else {
+                    tableWrapper.find(".dataTables_paginate").show();
+                }
+            },
+            language: {
+                url: "https://cdn.datatables.net/plug-ins/1.13.5/i18n/es-ES.json",
+                emptyTable: "No hay datos disponibles en la tabla",
+            },
+        });
+    } catch (error) {
+        console.error("Error en renderDataTableProv:", error);
+    }
+};
+
+// Agregar event listener al botón
+document.addEventListener('DOMContentLoaded', () => {
+    const btnGeneral = document.getElementById('btnRendimientoGeneral');
+    if (btnGeneral) {
+        // Remover listeners anteriores para evitar duplicados
+        btnGeneral.removeEventListener('click', cargarRendimientoGeneral);
+        btnGeneral.addEventListener('click', cargarRendimientoGeneral);
+    }
+});
+
+// Modificar la función infoRendimiento para que no interfiera con el rendimiento general
+window.infoRendimiento = async (event) => {
+    const valor = event.target.value;
+    if (!valor) {
+        return;
+    }
+    
+    try {
+        const res = await API_PRODUCCION.get(`/performance/${valor}`, {
+            headers: {
+                Authorization: "Bearer " + token,
+            },
+        });
+
+        if (!res.success) {
+            alerts.show(res);
+            return false;
+        }
+        
+        const {
+            data,
+            rechazo,
+            rechazoTotal,
+            rendimientoFritura,
+            rendimientoHFritura,
+            rendimientoProveedores,
+            dataProveedor,
+            cajas,
+            totalCanastillas,
+        } = res.data;
+
+        // Limpiar tablas existentes
+        if ($.fn.DataTable.isDataTable("#tablaCajas")) {
+            $("#tablaCajas").DataTable().destroy();
+        }
+        if ($.fn.DataTable.isDataTable("#tablaProveedores")) {
+            $("#tablaProveedores").DataTable().destroy();
+        }
+        if ($.fn.DataTable.isDataTable("#tablaCanastasProveedor")) {
+            $("#tablaCanastasProveedor").DataTable().destroy();
+        }
+
+        renderDataTableCaja(cajas);
+        renderDataTableProv(rendimientoProveedores);
+        renderDataTableDetalleProv(dataProveedor);
+        drawChart(rechazo, "graficaRechazo");
+        
+        // Usar la función asignarInfo existente
+        if (typeof asignarInfo === 'function') {
+            asignarInfo(
+                data,
+                rendimientoHFritura,
+                rendimientoFritura,
+                totalCanastillas,
+                rechazoTotal,
+            );
+        } else {
+            // Fallback si no existe asignarInfo
+            $("#platano").text(`${data[0]?.RendPlatano ?? 0}%`);
+            $("#fritura").text(`${data[0]?.RendFritura ?? 0}%`);
+            $("#hfritura").text(`${data[0]?.RendHFritura ?? 0}%`);
+            $("#empaque").text(`${data[0]?.RendEmpaque ?? 0}%`);
+            $("#total").text(`${data[0]?.RendTotal ?? 0}%`);
+            $("#rechazoTotal").text(`${rechazoTotal?.value ?? 0} Kg`);
+            $("#materiaPrima").text(
+                `${new Intl.NumberFormat("es-CL").format(rendimientoHFritura[0]?.totalMateria ?? 0)} kg`
+            );
+            $("#materiaCorte").text(
+                `${new Intl.NumberFormat("es-CL").format(rendimientoFritura[0]?.totalCorte ?? 0)} kg`
+            );
+            $("#materiaProcesada").text(
+                `${new Intl.NumberFormat("es-CL").format(rendimientoHFritura[0]?.totalFritura ?? 0)} Kg`
+            );
+            $("#canastillas").text(`${totalCanastillas ?? 0}`);
+        }
+
+    } catch (error) {
+        console.error(error);
+        Swal.fire({
+            icon: "error",
+            title: "Error",
+            text: error.message,
+            showConfirmButton: false,
+            timer: 1900,
+        });
+    }
+};
+
+
 const BtnEnviar = document.getElementById("BtnEnviar");
 const BtnPdf = document.getElementById("BtnPdf");
 
 const generarPDFContenedor = async () => {
     try {
         renderOrden();
-        const res = await API_BODEGA.get("/datos/" + ordenA,
-            {
-                headers: {
-                    "Content-Type": "application/json",
-                    Authorization: "Bearer " + token,
-                },
+        const res = await API_BODEGA.get("/datos/" + ordenA, {
+            headers: {
+                "Content-Type": "application/json",
+                Authorization: "Bearer " + token,
             },
-        );
+        });
 
         let data = res;
 
@@ -1267,6 +1663,7 @@ async function cargarProducciones() {
         responsive: true,
         orderCellsTop: true,
         deferRender: true,
+        order: [[0, "desc"]],
         columns: [
             { data: "Fecha" },
             { data: "Lote" },
@@ -1387,7 +1784,7 @@ async function abrirEditar(id_produccion) {
         return false;
     }
     const { data } = res;
-    
+
     document.getElementById("id_produccion").value = data.id;
     document.getElementById("fecha_creacion").value = data.fecha_creacion;
 
@@ -1684,11 +2081,14 @@ async function infoProduccion(id_produccion) {
         }
         const { data } = res;
 
-        document.querySelector("#fecha_creacion_info").value = data.fecha_creacion;
+        document.querySelector("#fecha_creacion_info").value =
+            data.fecha_creacion;
         document.querySelector("#fecha_cierre_info").value = data.fecha_cierre;
-        document.querySelector("#lote_produccion_info").value = data.lote_produccion;
+        document.querySelector("#lote_produccion_info").value =
+            data.lote_produccion;
         document.querySelector("#cantidad_info").value = data.numero_cajas;
-        document.querySelector("#cliente_info").value = data.cliente_relacionado;
+        document.querySelector("#cliente_info").value =
+            data.cliente_relacionado;
 
         $("#ModalInfoproduccion").modal("show");
     } catch (error) {

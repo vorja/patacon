@@ -418,6 +418,7 @@ async function cargarInfoLotes(dataLotes) {
             responsive: true,
             orderCellsTop: true,
             deferRender: true,
+            pageLength: 10,
             columns: [
                 { data: "fecha" },
                 { data: "producto" },
@@ -495,7 +496,7 @@ async function cargarInfoLotes(dataLotes) {
             drawCallback: function () {
                 var api = this.api();
                 var numColumnas = api.columns().count();
-                if (numColumnas <= 20) {
+                if (numColumnas >= 10) {
                     $(".dataTables_paginate").hide();
                 } else {
                     $(".dataTables_paginate").show();

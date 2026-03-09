@@ -104,6 +104,7 @@ export const getControlAlistamientoById = async (req, res) => {
     return sendResponse(res, StatusCodes.NOT_FOUND, null, `${error}`);
   }
 };
+
 export const getInfoAlistamientoById = async (req, res) => {
   try {
     const { id } = req.params;

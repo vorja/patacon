@@ -1,7 +1,7 @@
-/* import  AlertSystem  from "./helpers/AlertasManger.js"; */
+import { Url } from "./helpers/ApiUseManager.js";
 
 document.addEventListener("DOMContentLoaded", function () {
-    const API = "http://localhost:3105/auth";
+    const API = Url + "/auth";
     const btnLogout = document.querySelector("#logout");
     const token = document
         .querySelector('meta[name="jwt"]')
@@ -277,15 +277,22 @@ document.addEventListener("DOMContentLoaded", function () {
 
     function startSessionCheck() {
         // Verificar cada 5 minutos
-        sessionCheckInterval = setInterval(async () => {
-            const currentPath = window.location.pathname;
-            const publicRoutes = ["/login", "/register", "/forgot-password"];
+        sessionCheckInterval = setInterval(
+            async () => {
+                const currentPath = window.location.pathname;
+                const publicRoutes = [
+                    "/login",
+                    "/register",
+                    "/forgot-password",
+                ];
 
-            // Solo verificar en rutas protegidas
-            if (!publicRoutes.includes(currentPath)) {
-                await checkSession();
-            }
-        }, 5 * 60 * 1000); // 5 minutos
+                // Solo verificar en rutas protegidas
+                if (!publicRoutes.includes(currentPath)) {
+                    await checkSession();
+                }
+            },
+            5 * 60 * 1000,
+        ); // 5 minutos
     }
 
     function stopSessionCheck() {
