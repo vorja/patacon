@@ -22,6 +22,7 @@ const token = document
 
 // Variables globales
 let ordenA = "";
+let lotesDisponibles = []; // Array para almacenar los lotes disponibles
 
 const cargarSobrante = async () => {
     const response = await API_BODEGA.post(
@@ -39,20 +40,420 @@ const cargarSobrante = async () => {
     console.log("este es : ", response);
 };
 
+// ============================================
+// FUNCIÓN CORREGIDA PARA RENDIMIENTO GENERAL
+// ============================================
+
+// Función para cargar el rendimiento general de todos los días
+const cargarRendimientoGeneral = async () => {
+    try {
+        // Mostrar loading
+        Swal.fire({
+            title: "Cargando...",
+            text: "Obteniendo rendimiento general de todos los días",
+            allowOutsideClick: false,
+            didOpen: () => {
+                Swal.showLoading();
+            },
+        });
+
+        // Obtener la orden actual
+        if (!ordenA) {
+            Swal.close();
+            Swal.fire({
+                icon: "warning",
+                title: "Sin orden seleccionada",
+                text: "Por favor seleccione una orden de producción primero",
+            });
+            return;
+        }
+
+        // Llamar al endpoint de rendimiento general con la orden actual
+        const res = await API_PRODUCCION.get(`/performance-general/${ordenA}`, {
+            headers: {
+                Authorization: "Bearer " + token,
+            },
+        });
+
+        Swal.close();
+
+        if (!res.success) {
+            alerts.show(res);
+            return false;
+        }
+
+        // Acceder a los datos
+        const responseData = res.data;
+
+        const {
+            data,
+            rechazo,
+            rechazoTotal,
+            rendimientoFritura,
+            rendimientoHFritura,
+            rendimientoEmpaque,
+            rendimientoProveedores,
+            cajas,
+            totalCanastillas,
+            dataProveedor,
+            totales,
+            metadata,
+        } = responseData;
+
+        if (!data || data.length === 0) {
+            Swal.fire({
+                icon: "info",
+                title: "Sin datos",
+                text: "No hay datos de rendimiento general disponibles",
+            });
+            return;
+        }
+
+        // Limpiar tablas existentes
+        if ($.fn.DataTable.isDataTable("#tablaCajas")) {
+            $("#tablaCajas").DataTable().destroy();
+            $("#tablaCajas tbody").empty();
+        }
+        if ($.fn.DataTable.isDataTable("#tablaProveedores")) {
+            $("#tablaProveedores").DataTable().destroy();
+            $("#tablaProveedores tbody").empty();
+        }
+        if ($.fn.DataTable.isDataTable("#tablaCanastasProveedor")) {
+            $("#tablaCanastasProveedor").DataTable().destroy();
+            $("#tablaCanastasProveedor tbody").empty();
+        }
+
+        // Renderizar tabla de cajas
+        renderDataTableCaja(cajas);
+
+        // ============================================
+        // CORRECCIÓN: Transformar datos de proveedores para la tabla
+        // ============================================
+        let proveedoresTransformados = [];
+
+        if (rendimientoProveedores && rendimientoProveedores.length > 0) {
+            proveedoresTransformados = rendimientoProveedores.map((prov) => ({
+                proveedor: prov.proveedor,
+                // Usar totalMateriaRecibida para RECEPCIÓN
+                materia: prov.totalMateriaRecibida || 0,
+                // Usar totalMateriaProcesada para CORTE
+                totalMateria: prov.totalMateriaProcesada || 0,
+                // Usar rendimiento directamente
+                rendimiento: prov.rendimiento || 0,
+            }));
+        }
+
+        // Renderizar tabla de proveedores con los datos transformados
+        if (proveedoresTransformados.length > 0) {
+            renderDataTableProv(proveedoresTransformados);
+        } else {
+            // Si no hay datos, mostrar tabla vacía
+            $("#tablaProveedores tbody").html(`
+                <tr>
+                    <td colspan="4" class="text-center">No hay información de proveedores disponible</td>
+                </tr>
+            `);
+        }
+
+        // Renderizar tabla de detalle de proveedores
+        renderDataTableDetalleProv(dataProveedor);
+
+        // Dibujar gráfica de rechazo
+        if (rechazo && rechazo.length > 0) {
+            drawChart(rechazo, "graficaRechazo");
+        }
+
+        // Asignar información a los círculos de rendimiento
+        $("#platano").text(`${data[0]?.RendPlatano ?? 0}%`);
+        $("#fritura").text(`${data[0]?.RendFritura ?? 0}%`);
+        $("#hfritura").text(`${data[0]?.RendHFritura ?? 0}%`);
+        $("#empaque").text(`${data[0]?.RendEmpaque ?? 0}%`);
+        $("#total").text(`${data[0]?.RendTotal ?? 0}%`);
+
+        // Rechazo total
+        $("#rechazoTotal").text(`${rechazoTotal?.value ?? 0} Kg`);
+
+        // Asignar información a las tarjetas de totales
+        const hfrituraData =
+            rendimientoHFritura && rendimientoHFritura.length > 0
+                ? rendimientoHFritura[0]
+                : null;
+        const frituraData =
+            rendimientoFritura && rendimientoFritura.length > 0
+                ? rendimientoFritura[0]
+                : null;
+
+        $("#materiaPrima").text(
+            `${new Intl.NumberFormat("es-CL").format(hfrituraData?.totalMateria ?? 0)} kg`,
+        );
+        $("#materiaCorte").text(
+            `${new Intl.NumberFormat("es-CL").format(frituraData?.totalCorte ?? 0)} kg`,
+        );
+        $("#materiaProcesada").text(
+            `${new Intl.NumberFormat("es-CL").format(hfrituraData?.totalFritura ?? 0)} Kg`,
+        );
+        $("#canastillas").text(`${totalCanastillas ?? 0}`);
+
+        // Mostrar mensaje de éxito
+        let mensajeDias = "";
+        if (metadata) {
+            mensajeDias = `
+                <div class="text-start mt-3 p-3 bg-light rounded">
+                    <p class="mb-1"><strong>📊 Estadísticas del resumen:</strong></p>
+                    <p class="mb-1">• Días con datos: ${metadata.totalDiasConDatos || 0} de ${metadata.totalDias || 0}</p>
+                    <p class="mb-1">• Rango: ${metadata.rangoFechas?.desde || "N/A"} - ${metadata.rangoFechas?.hasta || "N/A"}</p>
+                </div>
+            `;
+        }
+
+        Swal.fire({
+            icon: "success",
+            title: "✅ Rendimiento General",
+            html: `
+                <div class="text-center">
+                    <p class="fw-bold fs-4 mb-2">Resumen de Producción</p>
+                    <div class="row mt-3">
+                        <div class="col-6 text-end">
+                            <span class="text-secondary">Rendimiento Plátano:</span>
+                        </div>
+                        <div class="col-6 text-start">
+                            <span class="badge bg-success fs-6">${data[0]?.RendPlatano ?? 0}%</span>
+                        </div>
+                        
+                        <div class="col-6 text-end mt-2">
+                            <span class="text-secondary">Rendimiento Fritura:</span>
+                        </div>
+                        <div class="col-6 text-start mt-2">
+                            <span class="badge bg-info fs-6">${data[0]?.RendFritura ?? 0}%</span>
+                        </div>
+                        
+                        <div class="col-6 text-end mt-2">
+                            <span class="text-secondary">Rendimiento Total:</span>
+                        </div>
+                        <div class="col-6 text-start mt-2">
+                            <span class="badge bg-danger fs-6">${data[0]?.RendTotal ?? 0}%</span>
+                        </div>
+                    </div>
+                    ${mensajeDias}
+                </div>
+            `,
+            confirmButtonText: "Aceptar",
+            confirmButtonColor: "#6c780d",
+        });
+    } catch (error) {
+        Swal.close();
+        console.error("Error al cargar rendimiento general:", error);
+        Swal.fire({
+            icon: "error",
+            title: "Error",
+            text: error.message || "Error al cargar el rendimiento general",
+            showConfirmButton: true,
+        });
+    }
+};
+
+// También necesitas modificar la función renderDataTableProv para que maneje valores nulos
+// Si no puedes modificar esa función, aquí tienes una versión adaptada:
+
+const renderDataTableProvConNulos = (data) => {
+    try {
+        // Verificar si la tabla ya existe y destruirla
+        if ($.fn.DataTable.isDataTable("#tablaProveedores")) {
+            $("#tablaProveedores").DataTable().destroy();
+        }
+
+        // Limpiar tbody
+        $("#tablaProveedores tbody").empty();
+
+        // Si no hay datos, mostrar mensaje
+        if (!data || data.length === 0) {
+            $("#tablaProveedores tbody").html(`
+                <tr>
+                    <td colspan="4" class="text-center">No hay información de proveedores disponible</td>
+                </tr>
+            `);
+            return;
+        }
+
+        // Inicializar DataTable
+        $(`#tablaProveedores`).DataTable({
+            data: data,
+            searching: false,
+            destroy: true,
+            serverSide: false,
+            responsive: true,
+            deferRender: true,
+            dom: "Bfrtip",
+            columns: [
+                { data: "proveedor" },
+                { data: "materia" },
+                { data: "totalMateria" },
+                { data: "rendimiento" },
+            ],
+            columnDefs: [
+                {
+                    targets: 0,
+                    createdCell: function (td, cellData) {
+                        $(td).html(
+                            `<span class="text-I">${cellData || "N/A"}</span>`,
+                        );
+                    },
+                },
+                {
+                    targets: 1,
+                    createdCell: function (td, cellData) {
+                        const valor = cellData || 0;
+                        $(td).html(
+                            `<span class="text-O">${new Intl.NumberFormat("es-CL").format(valor)} Kg</span>`,
+                        );
+                    },
+                },
+                {
+                    targets: 2,
+                    createdCell: function (td, cellData) {
+                        const valor = cellData || 0;
+                        $(td).html(
+                            `<span class="text-O">${new Intl.NumberFormat("es-CL").format(valor)} Kg</span>`,
+                        );
+                    },
+                },
+                {
+                    targets: 3,
+                    createdCell: function (td, cellData) {
+                        const valor = cellData || 0;
+                        $(td).html(`<span class="text-N">${valor}%</span>`);
+                    },
+                },
+            ],
+            drawCallback: function () {
+                let api = this.api();
+                let numRegistros = api.rows({ filter: "applied" }).count();
+                let tableWrapper = $(api.table().container());
+                if (numRegistros <= 6) {
+                    tableWrapper.find(".dataTables_paginate").hide();
+                } else {
+                    tableWrapper.find(".dataTables_paginate").show();
+                }
+            },
+            language: {
+                url: "https://cdn.datatables.net/plug-ins/1.13.5/i18n/es-ES.json",
+                emptyTable: "No hay datos disponibles en la tabla",
+            },
+        });
+    } catch (error) {
+        console.error("Error en renderDataTableProv:", error);
+    }
+};
+
+// Agregar event listener al botón
+document.addEventListener("DOMContentLoaded", () => {
+    const btnGeneral = document.getElementById("btnRendimientoGeneral");
+    if (btnGeneral) {
+        // Remover listeners anteriores para evitar duplicados
+        btnGeneral.removeEventListener("click", cargarRendimientoGeneral);
+        btnGeneral.addEventListener("click", cargarRendimientoGeneral);
+    }
+});
+
+// Modificar la función infoRendimiento para que no interfiera con el rendimiento general
+window.infoRendimiento = async (event) => {
+    const valor = event.target.value;
+    if (!valor) {
+        return;
+    }
+
+    try {
+        const res = await API_PRODUCCION.get(`/performance/${valor}`, {
+            headers: {
+                Authorization: "Bearer " + token,
+            },
+        });
+
+        if (!res.success) {
+            alerts.show(res);
+            return false;
+        }
+
+        const {
+            data,
+            rechazo,
+            rechazoTotal,
+            rendimientoFritura,
+            rendimientoHFritura,
+            rendimientoProveedores,
+            dataProveedor,
+            cajas,
+            totalCanastillas,
+        } = res.data;
+
+        // Limpiar tablas existentes
+        if ($.fn.DataTable.isDataTable("#tablaCajas")) {
+            $("#tablaCajas").DataTable().destroy();
+        }
+        if ($.fn.DataTable.isDataTable("#tablaProveedores")) {
+            $("#tablaProveedores").DataTable().destroy();
+        }
+        if ($.fn.DataTable.isDataTable("#tablaCanastasProveedor")) {
+            $("#tablaCanastasProveedor").DataTable().destroy();
+        }
+
+        renderDataTableCaja(cajas);
+        renderDataTableProv(rendimientoProveedores);
+        renderDataTableDetalleProv(dataProveedor);
+        drawChart(rechazo, "graficaRechazo");
+
+        // Usar la función asignarInfo existente
+        if (typeof asignarInfo === "function") {
+            asignarInfo(
+                data,
+                rendimientoHFritura,
+                rendimientoFritura,
+                totalCanastillas,
+                rechazoTotal,
+            );
+        } else {
+            // Fallback si no existe asignarInfo
+            $("#platano").text(`${data[0]?.RendPlatano ?? 0}%`);
+            $("#fritura").text(`${data[0]?.RendFritura ?? 0}%`);
+            $("#hfritura").text(`${data[0]?.RendHFritura ?? 0}%`);
+            $("#empaque").text(`${data[0]?.RendEmpaque ?? 0}%`);
+            $("#total").text(`${data[0]?.RendTotal ?? 0}%`);
+            $("#rechazoTotal").text(`${rechazoTotal?.value ?? 0} Kg`);
+            $("#materiaPrima").text(
+                `${new Intl.NumberFormat("es-CL").format(rendimientoHFritura[0]?.totalMateria ?? 0)} kg`,
+            );
+            $("#materiaCorte").text(
+                `${new Intl.NumberFormat("es-CL").format(rendimientoFritura[0]?.totalCorte ?? 0)} kg`,
+            );
+            $("#materiaProcesada").text(
+                `${new Intl.NumberFormat("es-CL").format(rendimientoHFritura[0]?.totalFritura ?? 0)} Kg`,
+            );
+            $("#canastillas").text(`${totalCanastillas ?? 0}`);
+        }
+    } catch (error) {
+        console.error(error);
+        Swal.fire({
+            icon: "error",
+            title: "Error",
+            text: error.message,
+            showConfirmButton: false,
+            timer: 1900,
+        });
+    }
+};
+
 const BtnEnviar = document.getElementById("BtnEnviar");
 const BtnPdf = document.getElementById("BtnPdf");
 
 const generarPDFContenedor = async () => {
     try {
         renderOrden();
-        const res = await API_BODEGA.get("/datos/" + ordenA,
-            {
-                headers: {
-                    "Content-Type": "application/json",
-                    Authorization: "Bearer " + token,
-                },
+        const res = await API_BODEGA.get("/datos/" + ordenA, {
+            headers: {
+                "Content-Type": "application/json",
+                Authorization: "Bearer " + token,
             },
-        );
+        });
 
         let data = res;
 
@@ -123,79 +524,68 @@ const cargarTablaEnvio = async () => {
     }
 };
 
-// Función para actualizar la tabla (sin columna de acciones)
+// Función para actualizar la tabla (con múltiples filas de contenedor anterior)
 const actualizarTablaEnvio = (data) => {
-    const tbody = document.querySelector("#tableEnviar tbody");
+  const tbody = document.querySelector("#tableEnviar tbody");
 
-    if (!data || data.length === 0) {
-        tbody.innerHTML = `
-            <tr>
-                <td colspan="9" class="text-center py-4">
-                    No hay órdenes de producción listas para envío
-                </td>
-            </tr>
+  if (!data || data.length === 0) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="9" class="text-center py-4">
+          No hay órdenes de producción listas para envío
+        </td>
+      </tr>
+    `;
+    return;
+  }
+
+  let filas = "";
+
+  data.forEach((item) => {
+    // Detectar si es el objeto de cajas de contenedor anterior
+    if (item.cajasContenedorAnterior && Array.isArray(item.cajasContenedorAnterior)) {
+      // Crear una fila por cada registro de contenedor anterior
+      item.cajasContenedorAnterior.forEach((caja) => {
+        filas += `
+          <tr class="table-secondary fw-semibold">
+            <td class="text-center align-middle">
+              <i class="fa-solid fa-rotate-left text-warning me-1"></i>
+              Cont. Ant. (Lote: ${caja.fecha_produccion || caja.fecha || 'N/A'})
+            </td>
+            <td class="text-center align-middle">${caja.tipo_a || 0}</td>
+            <td class="text-center align-middle">${caja.tipo_b || 0}</td>
+            <td class="text-center align-middle">${caja.tipo_c || 0}</td>
+            <td class="text-center align-middle">${caja.tipo_af || 0}</td>
+            <td class="text-center align-middle">${caja.tipo_bh || 0}</td>
+            <td class="text-center align-middle">${caja.tipo_xl || 0}</td>
+            <td class="text-center align-middle">${caja.tipo_cil || 0}</td>
+            <td class="text-center align-middle">${caja.tipo_p || 0}</td>
+          </tr>
         `;
-        return;
+      });
+      return; 
     }
 
-    let filas = "";
+    // Si es un lote normal de producción
+    filas += `
+      <tr>
+        <td class="text-center align-middle fw-semibold">
+          <i class="fa-solid fa-calendar-day me-1"></i>
+          ${item.fecha_produccion}
+        </td>
+        <td class="text-center align-middle">${item.A || 0}</td>
+        <td class="text-center align-middle">${item.B || 0}</td>
+        <td class="text-center align-middle">${item.C || 0}</td>
+        <td class="text-center align-middle">${item.AF || 0}</td>
+        <td class="text-center align-middle">${item.BH || 0}</td>
+        <td class="text-center align-middle">${item.XL || 0}</td>
+        <td class="text-center align-middle">${item.CIL || 0}</td>
+        <td class="text-center align-middle">${item.PINTON || 0}</td>
+      </tr>
+    `;
+  });
 
-    data.forEach((item) => {
-        // 🔹 Detectar el objeto especial
-        if (item.cajasContenedorAnterior) {
-            // 👉 sumar las cajas del contenedor anterior
-            const totales = item.cajasContenedorAnterior.reduce(
-                (acc, c) => {
-                    acc.A += c.tipo_a || 0;
-                    acc.B += c.tipo_b || 0;
-                    acc.C += c.tipo_c || 0;
-                    acc.AF += c.tipo_af || 0;
-                    acc.BH += c.tipo_bh || 0;
-                    acc.XL += c.tipo_xl || 0;
-                    acc.CIL += c.tipo_cil || 0;
-                    acc.PINTON += c.tipo_p || 0;
-                    return acc;
-                },
-                { A: 0, B: 0, C: 0, AF: 0, BH: 0, XL: 0, CIL: 0, PINTON: 0 },
-            );
-
-            filas += `
-                <tr class="table-secondary fw-semibold">
-                    <td class="text-center align-middle">
-                        Cajas contenedor anterior
-                    </td>
-                    <td class="text-center align-middle">${totales.A}</td>
-                    <td class="text-center align-middle">${totales.B}</td>
-                    <td class="text-center align-middle">${totales.C}</td>
-                    <td class="text-center align-middle">${totales.AF}</td>
-                    <td class="text-center align-middle">${totales.BH}</td>
-                    <td class="text-center align-middle">${totales.XL}</td>
-                    <td class="text-center align-middle">${totales.CIL}</td>
-                    <td class="text-center align-middle">${totales.PINTON}</td>
-                </tr>
-            `;
-            return;
-        }
-
-        // 🔹 Proveedores normales
-        filas += `
-            <tr>
-                <td class="text-center align-middle fw-semibold">
-                    ${item.proveedor}
-                </td>
-                <td class="text-center align-middle">${item.A || 0}</td>
-                <td class="text-center align-middle">${item.B || 0}</td>
-                <td class="text-center align-middle">${item.C || 0}</td>
-                <td class="text-center align-middle">${item.AF || 0}</td>
-                <td class="text-center align-middle">${item.BH || 0}</td>
-                <td class="text-center align-middle">${item.XL || 0}</td>
-                <td class="text-center align-middle">${item.CIL || 0}</td>
-                <td class="text-center align-middle">${item.PINTON || 0}</td>
-            </tr>
-        `;
-    });
-
-    tbody.innerHTML = filas;
+  tbody.innerHTML = filas;
 };
 
 // Función para actualizar los totales
@@ -315,10 +705,289 @@ const actualizarTablaHistorial = (data) => {
 };
 
 // ============================================
-// FUNCIÓN PARA GUARDAR SOBRANTES
+// NUEVAS FUNCIONES PARA SOBRANTES POR LOTE
 // ============================================
 
-// Función para guardar los sobrantes
+// Función para cargar los lotes en el buscador
+const cargarLotesEnBuscador = async () => {
+    try {
+        const ordenActual = ordenA;
+
+        if (!ordenActual) {
+            console.log("No hay orden seleccionada");
+            return;
+        }
+
+        // Mostrar estado de carga
+        const selectLotes = document.getElementById("buscadorLotes");
+        if (!selectLotes) return;
+
+        selectLotes.innerHTML = '<option value="">Cargando lotes...</option>';
+        selectLotes.disabled = true;
+
+        // Usar el mismo endpoint que cargarTablaEnvio
+        const response = await API_BODEGA.get(
+            "/info-cajas-proveedor/" + ordenActual,
+            {
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: "Bearer " + token,
+                },
+            },
+        );
+
+        if (response.data && response.data.success) {
+            // Filtrar solo los items que no son el especial de "Cajas contenedor anterior"
+            const todosLosItems = response.data.data || [];
+
+            // Filtrar para obtener solo los lotes (excluir el objeto especial)
+            lotesDisponibles = todosLosItems.filter((item) => {
+                // Excluir el objeto que tiene la propiedad cajasContenedorAnterior
+                return !item.cajasContenedorAnterior;
+            });
+
+            console.log("Lotes disponibles (por fecha):", lotesDisponibles);
+
+            // Llenar el select con los lotes (usando fecha_produccion)
+            llenarSelectLotes(lotesDisponibles);
+        } else {
+            lotesDisponibles = [];
+            llenarSelectLotes([]);
+        }
+    } catch (error) {
+        console.error("Error al cargar lotes:", error);
+
+        // En caso de error, mostrar opción por defecto
+        const selectLotes = document.getElementById("buscadorLotes");
+        if (selectLotes) {
+            selectLotes.innerHTML =
+                '<option value="">Error al cargar lotes</option>';
+        }
+
+        lotesDisponibles = [];
+    } finally {
+        // Habilitar el select
+        const selectLotes = document.getElementById("buscadorLotes");
+        if (selectLotes) {
+            selectLotes.disabled = false;
+        }
+    }
+};
+
+// Función para llenar el select con los lotes
+const llenarSelectLotes = (lotes) => {
+    const selectLotes = document.getElementById("buscadorLotes");
+
+    if (!selectLotes) return;
+
+    if (!lotes || lotes.length === 0) {
+        selectLotes.innerHTML =
+            '<option value="">No hay lotes disponibles</option>';
+        return;
+    }
+
+    let opciones =
+        '<option value="">Seleccione un lote para agregar...</option>';
+
+    lotes.forEach((lote, index) => {
+        // Usar fecha_produccion como identificador del lote
+        const fechaLote = lote.fecha_produccion || "Fecha no disponible";
+
+        // Guardamos el índice en el value para poder acceder al objeto completo después
+        opciones += `<option value="${index}">
+            Lote: ${fechaLote}
+        </option>`;
+    });
+
+    selectLotes.innerHTML = opciones;
+};
+
+// Función para agregar lote a la tabla
+const agregarLoteATabla = () => {
+    const selectLotes = document.getElementById("buscadorLotes");
+    const selectedIndex = selectLotes.value;
+
+    if (!selectedIndex) {
+        Swal.fire({
+            icon: "warning",
+            title: "Seleccione un lote",
+            text: "Debe seleccionar un lote para agregar",
+            timer: 2000,
+            showConfirmButton: false,
+        });
+        return;
+    }
+
+    // Obtener el lote seleccionado del array de lotesDisponibles
+    const loteSeleccionado = lotesDisponibles[selectedIndex];
+
+    if (!loteSeleccionado) {
+        Swal.fire({
+            icon: "error",
+            title: "Error",
+            text: "No se pudo obtener la información del lote",
+            timer: 2000,
+            showConfirmButton: false,
+        });
+        return;
+    }
+
+    // Verificar si el lote ya fue agregado
+    const tbody = document.getElementById("tbodyLotesSeleccionados");
+    const filasExistentes = tbody.querySelectorAll("tr:not(#filaVacia)");
+
+    for (let fila of filasExistentes) {
+        const fechaFila = fila.getAttribute("data-fecha");
+        if (fechaFila === loteSeleccionado.fecha_produccion) {
+            Swal.fire({
+                icon: "warning",
+                title: "Lote duplicado",
+                text: "Este lote ya fue agregado a la tabla",
+                timer: 2000,
+                showConfirmButton: false,
+            });
+            return;
+        }
+    }
+
+    // Eliminar la fila vacía si existe
+    const filaVacia = document.getElementById("filaVacia");
+    if (filaVacia) {
+        filaVacia.remove();
+    }
+
+    // Generar un ID único para esta fila
+    const uniqueId = Date.now() + Math.random().toString(36).substr(2, 9);
+
+    // Crear la nueva fila
+    const nuevaFila = document.createElement("tr");
+    nuevaFila.setAttribute("data-fecha", loteSeleccionado.fecha_produccion);
+    nuevaFila.setAttribute("data-unique-id", uniqueId);
+
+    nuevaFila.innerHTML = `
+        <td class="align-middle fw-semibold">
+            <i class="fa-solid fa-calendar-day me-1"></i>
+            ${loteSeleccionado.fecha_produccion}
+        </td>
+        <td class="align-middle">
+            <input type="number" class="form-control form-control-sm input-sobrante" 
+                   data-tipo="A" data-fila="${uniqueId}" min="0" value="0" style="width: 80px;">
+        </td>
+        <td class="align-middle">
+            <input type="number" class="form-control form-control-sm input-sobrante" 
+                   data-tipo="B" data-fila="${uniqueId}" min="0" value="0" style="width: 80px;">
+        </td>
+        <td class="align-middle">
+            <input type="number" class="form-control form-control-sm input-sobrante" 
+                   data-tipo="C" data-fila="${uniqueId}" min="0" value="0" style="width: 80px;">
+        </td>
+        <td class="align-middle">
+            <input type="number" class="form-control form-control-sm input-sobrante" 
+                   data-tipo="AF" data-fila="${uniqueId}" min="0" value="0" style="width: 80px;">
+        </td>
+        <td class="align-middle">
+            <input type="number" class="form-control form-control-sm input-sobrante" 
+                   data-tipo="BH" data-fila="${uniqueId}" min="0" value="0" style="width: 80px;">
+        </td>
+        <td class="align-middle">
+            <input type="number" class="form-control form-control-sm input-sobrante" 
+                   data-tipo="XL" data-fila="${uniqueId}" min="0" value="0" style="width: 80px;">
+        </td>
+        <td class="align-middle">
+            <input type="number" class="form-control form-control-sm input-sobrante" 
+                   data-tipo="CIL" data-fila="${uniqueId}" min="0" value="0" style="width: 80px;">
+        </td>
+        <td class="align-middle">
+            <input type="number" class="form-control form-control-sm input-sobrante" 
+                   data-tipo="PINTON" data-fila="${uniqueId}" min="0" value="0" style="width: 80px;">
+        </td>
+        <td class="align-middle text-center">
+            <button class="btn btn-sm btn-danger btn-eliminar-lote" data-index="${uniqueId}" type="button">
+                <i class="fa-solid fa-trash"></i>
+            </button>
+        </td>
+    `;
+
+    tbody.appendChild(nuevaFila);
+
+    // Resetear el select
+    selectLotes.value = "";
+
+    // Actualizar totales
+    actualizarTotalesSobrantes();
+};
+
+// Función para eliminar lote de la tabla
+const eliminarLoteDeTabla = (uniqueId) => {
+    const fila = document.querySelector(`tr[data-unique-id="${uniqueId}"]`);
+    if (fila) {
+        fila.remove();
+
+        // Si no quedan filas, mostrar la fila vacía
+        const tbody = document.getElementById("tbodyLotesSeleccionados");
+        if (tbody.children.length === 0) {
+            tbody.innerHTML = `
+                <tr id="filaVacia">
+                    <td colspan="10" class="text-center py-4 text-muted">
+                        <i class="fa-solid fa-box-open fa-2x mb-2"></i><br>
+                        No hay lotes seleccionados. Agregue lotes usando el buscador.
+                    </td>
+                </tr>
+            `;
+        }
+
+        // Actualizar totales
+        actualizarTotalesSobrantes();
+    }
+};
+
+// Función para actualizar totales de sobrantes
+const actualizarTotalesSobrantes = () => {
+    const totales = {
+        A: 0,
+        B: 0,
+        C: 0,
+        AF: 0,
+        BH: 0,
+        XL: 0,
+        CIL: 0,
+        PINTON: 0,
+    };
+
+    const inputs = document.querySelectorAll(".input-sobrante");
+    inputs.forEach((input) => {
+        const tipo = input.getAttribute("data-tipo");
+        const valor = parseInt(input.value) || 0;
+        totales[tipo] += valor;
+    });
+
+    // Actualizar los spans de totales
+    document.getElementById("totalSobranteA").textContent = totales.A;
+    document.getElementById("totalSobranteB").textContent = totales.B;
+    document.getElementById("totalSobranteC").textContent = totales.C;
+    document.getElementById("totalSobranteAF").textContent = totales.AF;
+    document.getElementById("totalSobranteBH").textContent = totales.BH;
+    document.getElementById("totalSobranteXL").textContent = totales.XL;
+    document.getElementById("totalSobranteCIL").textContent = totales.CIL;
+    document.getElementById("totalSobrantePINTON").textContent = totales.PINTON;
+};
+
+// Función para resetear totales
+const resetearTotales = () => {
+    document.getElementById("totalSobranteA").textContent = "0";
+    document.getElementById("totalSobranteB").textContent = "0";
+    document.getElementById("totalSobranteC").textContent = "0";
+    document.getElementById("totalSobranteAF").textContent = "0";
+    document.getElementById("totalSobranteBH").textContent = "0";
+    document.getElementById("totalSobranteXL").textContent = "0";
+    document.getElementById("totalSobranteCIL").textContent = "0";
+    document.getElementById("totalSobrantePINTON").textContent = "0";
+};
+
+// ============================================
+// FUNCIÓN MODIFICADA PARA GUARDAR SOBRANTES (ahora por lote)
+// ============================================
+
 const guardarSobrantes = async () => {
     // Validar fecha
     const fecha = document.getElementById("fechaSobrantes").value;
@@ -331,17 +1000,57 @@ const guardarSobrantes = async () => {
         return;
     }
 
-    // Recopilar los datos de sobrantes
-    const sobrantes = {
-        A: parseInt(document.getElementById("sobranteA").value) || 0,
-        B: parseInt(document.getElementById("sobranteB").value) || 0,
-        C: parseInt(document.getElementById("sobranteC").value) || 0,
-        AF: parseInt(document.getElementById("sobranteAF").value) || 0,
-        BH: parseInt(document.getElementById("sobranteBH").value) || 0,
-        XL: parseInt(document.getElementById("sobranteXL").value) || 0,
-        CIL: parseInt(document.getElementById("sobranteCIL").value) || 0,
-        PINTON: parseInt(document.getElementById("sobrantePINTON").value) || 0,
+    // Validar que haya lotes seleccionados
+    const tbody = document.getElementById("tbodyLotesSeleccionados");
+    const filas = tbody.querySelectorAll("tr:not(#filaVacia)");
+
+    if (filas.length === 0) {
+        Swal.fire({
+            icon: "warning",
+            title: "Sin lotes",
+            text: "Debe agregar al menos un lote con sus sobrantes",
+        });
+        return;
+    }
+
+    // Recopilar los datos de sobrantes por lote
+    const sobrantesPorLote = [];
+    const totalesSobrantes = {
+        A: 0,
+        B: 0,
+        C: 0,
+        AF: 0,
+        BH: 0,
+        XL: 0,
+        CIL: 0,
+        PINTON: 0,
     };
+
+    filas.forEach((fila) => {
+        const fechaLote = fila.getAttribute("data-fecha");
+        const inputs = fila.querySelectorAll(".input-sobrante");
+
+        const sobrantesLote = {
+            fecha_produccion: fechaLote,
+            A: 0,
+            B: 0,
+            C: 0,
+            AF: 0,
+            BH: 0,
+            XL: 0,
+            CIL: 0,
+            PINTON: 0,
+        };
+
+        inputs.forEach((input) => {
+            const tipo = input.getAttribute("data-tipo");
+            const valor = parseInt(input.value) || 0;
+            sobrantesLote[tipo] = valor;
+            totalesSobrantes[tipo] += valor;
+        });
+
+        sobrantesPorLote.push(sobrantesLote);
+    });
 
     // Obtener los totales actuales de la tabla
     const totalesActuales = {
@@ -357,9 +1066,9 @@ const guardarSobrantes = async () => {
             0,
     };
 
-    // Validar que los sobrantes no sean mayores a los totales
-    for (const [tipo, cantidad] of Object.entries(sobrantes)) {
-        if (cantidad > 0 && cantidad > totalesActuales[tipo]) {
+    // Validar que los sobrantes totales no sean mayores a los totales disponibles
+    for (const [tipo, cantidad] of Object.entries(totalesSobrantes)) {
+        if (cantidad > totalesActuales[tipo]) {
             Swal.fire({
                 icon: "error",
                 title: "Cantidad inválida",
@@ -369,16 +1078,16 @@ const guardarSobrantes = async () => {
         }
     }
 
-    // Calcular lo que se envió
+    // Calcular lo que se envió (totales menos sobrantes totales)
     const enviados = {
-        A: totalesActuales.A - sobrantes.A,
-        B: totalesActuales.B - sobrantes.B,
-        C: totalesActuales.C - sobrantes.C,
-        AF: totalesActuales.AF - sobrantes.AF,
-        BH: totalesActuales.BH - sobrantes.BH,
-        XL: totalesActuales.XL - sobrantes.XL,
-        CIL: totalesActuales.CIL - sobrantes.CIL,
-        PINTON: totalesActuales.PINTON - sobrantes.PINTON,
+        A: totalesActuales.A - totalesSobrantes.A,
+        B: totalesActuales.B - totalesSobrantes.B,
+        C: totalesActuales.C - totalesSobrantes.C,
+        AF: totalesActuales.AF - totalesSobrantes.AF,
+        BH: totalesActuales.BH - totalesSobrantes.BH,
+        XL: totalesActuales.XL - totalesSobrantes.XL,
+        CIL: totalesActuales.CIL - totalesSobrantes.CIL,
+        PINTON: totalesActuales.PINTON - totalesSobrantes.PINTON,
     };
 
     // Verificar si hay algo para enviar
@@ -386,17 +1095,49 @@ const guardarSobrantes = async () => {
         (acc, val) => acc + val,
         0,
     );
-    if (totalEnvio === 0) {
+    if (
+        totalEnvio === 0 &&
+        Object.values(totalesSobrantes).reduce((acc, val) => acc + val, 0) === 0
+    ) {
         Swal.fire({
             icon: "warning",
             title: "Sin productos",
-            text: "No hay productos disponibles para enviar",
+            text: "No hay productos para enviar ni sobrantes registrados",
         });
         return;
     }
 
     // Obtener la orden actual
     const ordenActual = ordenA;
+
+    // Crear resumen para la confirmación
+    let resumenSobrantesHtml = "";
+    sobrantesPorLote.forEach((lote) => {
+        const tieneSobrantes = Object.values(lote).some(
+            (val) => typeof val === "number" && val > 0,
+        );
+        if (tieneSobrantes) {
+            resumenSobrantesHtml += `<p class="mt-2 mb-1"><strong>Lote ${lote.fecha_produccion}:</strong></p>`;
+            resumenSobrantesHtml += "<ul>";
+            if (lote.A > 0)
+                resumenSobrantesHtml += `<li>Tipo A: ${lote.A}</li>`;
+            if (lote.B > 0)
+                resumenSobrantesHtml += `<li>Tipo B: ${lote.B}</li>`;
+            if (lote.C > 0)
+                resumenSobrantesHtml += `<li>Tipo C: ${lote.C}</li>`;
+            if (lote.AF > 0)
+                resumenSobrantesHtml += `<li>Tipo AF: ${lote.AF}</li>`;
+            if (lote.BH > 0)
+                resumenSobrantesHtml += `<li>Tipo BH: ${lote.BH}</li>`;
+            if (lote.XL > 0)
+                resumenSobrantesHtml += `<li>Tipo XL: ${lote.XL}</li>`;
+            if (lote.CIL > 0)
+                resumenSobrantesHtml += `<li>Tipo CIL: ${lote.CIL}</li>`;
+            if (lote.PINTON > 0)
+                resumenSobrantesHtml += `<li>Tipo PINTON: ${lote.PINTON}</li>`;
+            resumenSobrantesHtml += "</ul>";
+        }
+    });
 
     // Confirmar registro
     Swal.fire({
@@ -418,19 +1159,10 @@ const guardarSobrantes = async () => {
                     ${enviados.PINTON > 0 ? `<li>Tipo PINTON: ${enviados.PINTON}</li>` : ""}
                 </ul>
                 ${
-                    Object.values(sobrantes).some((val) => val > 0)
+                    resumenSobrantesHtml
                         ? `
-                    <h6>Cajas sobrantes:</h6>
-                    <ul>
-                        ${sobrantes.A > 0 ? `<li>Tipo A: ${sobrantes.A}</li>` : ""}
-                        ${sobrantes.B > 0 ? `<li>Tipo B: ${sobrantes.B}</li>` : ""}
-                        ${sobrantes.C > 0 ? `<li>Tipo C: ${sobrantes.C}</li>` : ""}
-                        ${sobrantes.AF > 0 ? `<li>Tipo AF: ${sobrantes.AF}</li>` : ""}
-                        ${sobrantes.BH > 0 ? `<li>Tipo BH: ${sobrantes.BH}</li>` : ""}
-                        ${sobrantes.XL > 0 ? `<li>Tipo XL: ${sobrantes.XL}</li>` : ""}
-                        ${sobrantes.CIL > 0 ? `<li>Tipo CIL: ${sobrantes.CIL}</li>` : ""}
-                        ${sobrantes.PINTON > 0 ? `<li>Tipo PINTON: ${sobrantes.PINTON}</li>` : ""}
-                    </ul>
+                    <h6>Cajas sobrantes por lote:</h6>
+                    ${resumenSobrantesHtml}
                 `
                         : '<p class="text-success"><i class="fa-solid fa-check"></i> No hay cajas sobrantes (todo se envió)</p>'
                 }
@@ -462,7 +1194,7 @@ const guardarSobrantes = async () => {
                         fecha: fecha,
                         orden: ordenActual,
                         enviados: enviados,
-                        sobrantes: sobrantes,
+                        sobrantes_por_lote: sobrantesPorLote, // Ahora enviamos los sobrantes por lote
                     },
                     {
                         headers: {
@@ -493,8 +1225,10 @@ const guardarSobrantes = async () => {
                         Se ha registrado el envío de:<br>
                         <strong>${totalEnvio} cajas</strong><br>
                         ${
-                            Object.values(sobrantes).some((val) => val > 0)
-                                ? `<span class="text-warning">Quedaron ${Object.values(sobrantes).reduce((a, b) => a + b, 0)} cajas como sobrantes</span>`
+                            Object.values(totalesSobrantes).some(
+                                (val) => val > 0,
+                            )
+                                ? `<span class="text-warning">Quedaron ${Object.values(totalesSobrantes).reduce((a, b) => a + b, 0)} cajas como sobrantes</span>`
                                 : '<span class="text-success">No quedaron cajas sobrantes</span>'
                         }
                     `,
@@ -560,7 +1294,7 @@ const guardarSobrantes = async () => {
 };
 
 // ============================================
-// EVENTOS Y INICIALIZACIÓN
+// EVENTOS Y INICIALIZACIÓN (MODIFICADO)
 // ============================================
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -570,30 +1304,47 @@ document.addEventListener("DOMContentLoaded", () => {
         BtnEnviar.addEventListener("click", guardarSobrantes);
     }
 
+    // Evento para el botón Agregar Lote
+    const btnAgregarLote = document.getElementById("btnAgregarLote");
+    if (btnAgregarLote) {
+        btnAgregarLote.addEventListener("click", agregarLoteATabla);
+    }
+
     // Configurar el modal de sobrantes
     const modalSobrantes = document.getElementById("modalSobrantes");
     if (modalSobrantes) {
         modalSobrantes.addEventListener("hidden.bs.modal", () => {
             document.getElementById("formSobrantes").reset();
-            // Establecer la fecha actual por defecto cuando se vuelva a abrir
-            const hoy = new Date().toISOString().split("T")[0];
-            document.getElementById("fechaSobrantes").value = hoy;
+            // Limpiar la tabla de lotes seleccionados cuando se cierre el modal
+            const tbody = document.getElementById("tbodyLotesSeleccionados");
+            if (tbody) {
+                tbody.innerHTML = `
+                    <tr id="filaVacia">
+                        <td colspan="10" class="text-center py-4 text-muted">
+                            <i class="fa-solid fa-box-open fa-2x mb-2"></i><br>
+                            No hay lotes seleccionados. Agregue lotes usando el buscador.
+                        </td>
+                    </tr>
+                `;
+            }
+            // Resetear totales
+            resetearTotales();
+
+            // Limpiar el select
+            const selectLotes = document.getElementById("buscadorLotes");
+            if (selectLotes) {
+                selectLotes.innerHTML =
+                    '<option value="">Seleccione un lote para agregar...</option>';
+            }
         });
 
-        // Establecer fecha actual cuando se abre el modal
+        // Establecer fecha actual y cargar lotes cuando se abre el modal
         modalSobrantes.addEventListener("show.bs.modal", () => {
             const hoy = new Date().toISOString().split("T")[0];
             document.getElementById("fechaSobrantes").value = hoy;
 
-            // Poner todos los inputs en 0
-            document.getElementById("sobranteA").value = 0;
-            document.getElementById("sobranteB").value = 0;
-            document.getElementById("sobranteC").value = 0;
-            document.getElementById("sobranteAF").value = 0;
-            document.getElementById("sobranteBH").value = 0;
-            document.getElementById("sobranteXL").value = 0;
-            document.getElementById("sobranteCIL").value = 0;
-            document.getElementById("sobrantePINTON").value = 0;
+            // Cargar los lotes en el buscador
+            cargarLotesEnBuscador();
         });
     }
 
@@ -611,6 +1362,26 @@ document.addEventListener("DOMContentLoaded", () => {
         cargarTablaEnvio();
         cargarHistorialEnvios();
     }
+
+    // Delegación de eventos para los botones eliminar y los inputs de la tabla dinámica
+    document.addEventListener("click", (e) => {
+        // Eliminar lote de la tabla
+        if (
+            e.target.classList.contains("btn-eliminar-lote") ||
+            e.target.closest(".btn-eliminar-lote")
+        ) {
+            const btn = e.target.closest(".btn-eliminar-lote");
+            const index = btn.getAttribute("data-index");
+            eliminarLoteDeTabla(index);
+        }
+    });
+
+    // Delegación de eventos para los inputs de cantidades (para actualizar totales)
+    document.addEventListener("input", (e) => {
+        if (e.target.classList.contains("input-sobrante")) {
+            actualizarTotalesSobrantes();
+        }
+    });
 });
 
 // También cargar historial cuando cambie la orden
@@ -674,7 +1445,8 @@ async function init() {
     }
 }
 
-BtnEnviar.addEventListener("click", guardarSobrantes);
+// Nota: Elimina esta línea duplicada que estaba al final:
+// BtnEnviar.addEventListener("click", guardarSobrantes);
 
 function setupEventListeners() {
     if (elementsProduccion.btnAgregar) {
@@ -1267,6 +2039,7 @@ async function cargarProducciones() {
         responsive: true,
         orderCellsTop: true,
         deferRender: true,
+        order: [[0, "desc"]],
         columns: [
             { data: "Fecha" },
             { data: "Lote" },
@@ -1387,7 +2160,7 @@ async function abrirEditar(id_produccion) {
         return false;
     }
     const { data } = res;
-    
+
     document.getElementById("id_produccion").value = data.id;
     document.getElementById("fecha_creacion").value = data.fecha_creacion;
 
@@ -1398,6 +2171,7 @@ async function abrirEditar(id_produccion) {
     document.getElementById("numero_cajas").value = data.numero_cajas;
     document.getElementById("inputElaboracion").value = data.responsable.nombre;
     document.getElementById("id_elaboracion").value = data.id_responsable;
+    document.getElementById("numero_orden").value = data.numero_orden;
 
     $("#ModalProduccion").modal("show");
 }
@@ -1507,7 +2281,8 @@ async function formProduccion(e) {
         fecha_creacion: fechaCreacion,
         fecha_cierre: document.getElementById("fecha_cierre").value,
         lote_produccion: loteGenerado, // Usar el lote generado automáticamente
-        cliente_relacionado: document.getElementById("inputCliente").value,
+        numero_orden: document.getElementById("numero_orden").value,
+        cliente_relacionado: document.getElementById("clienteId").value + "," + document.getElementById("inputCliente").value,
         numero_cajas: document.getElementById("numero_cajas").value,
         id_responsable: document.getElementById("id_elaboracion").value,
     };
@@ -1684,11 +2459,16 @@ async function infoProduccion(id_produccion) {
         }
         const { data } = res;
 
-        document.querySelector("#fecha_creacion_info").value = data.fecha_creacion;
+        document.querySelector("#fecha_creacion_info").value =
+            data.fecha_creacion;
         document.querySelector("#fecha_cierre_info").value = data.fecha_cierre;
-        document.querySelector("#lote_produccion_info").value = data.lote_produccion;
+        document.querySelector("#lote_produccion_info").value =
+            data.lote_produccion;
+        document.querySelector("#numero_orden_info").value = data.numero_orden;
         document.querySelector("#cantidad_info").value = data.numero_cajas;
         document.querySelector("#cliente_info").value = data.cliente_relacionado;
+
+        console.log("estes esssssss hpsss  : ", data.cliente_relacionado.split(",")[1])
 
         $("#ModalInfoproduccion").modal("show");
     } catch (error) {
@@ -2494,7 +3274,7 @@ const renderPanel = async () => {
     const ordenlist = document.getElementById("ordenlist");
     data.forEach((item) => {
         const option = document.createElement("option");
-        option.value = item.id + " / " + item.Lote;
+        option.value = item.Orden + " / " + item.Lote;
         option.dataset.id = item.id;
         ordenlist.appendChild(option);
     });
@@ -2526,10 +3306,8 @@ const renderOrden = async () => {
             return;
         }
         const { ordenProduccion } = response.data;
-        document.getElementById("ordenactual").textContent =
-            ordenProduccion.lote_produccion;
-        document.getElementById("clienteActual").textContent =
-            ordenProduccion.cliente_relacionado || "N/A";
+        document.getElementById("ordenactual").textContent = ordenProduccion.lote_produccion;
+        document.getElementById("clienteActual").textContent = ordenProduccion.cliente_relacionado.split(",")[1] || "N/A";
 
         ordenA = ordenProduccion.id;
         proyeccionContenedor(ordenProduccion.id);

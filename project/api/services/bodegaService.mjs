@@ -42,64 +42,14 @@ export const obtenerDatosPdf = async (orden) => {
             [Op.in]: idsRegistroEmpaque,
           },
         },
+        order: [["fecha_produccion", "ASC"]],
       });
     }
-
-    // Procesar los detalles de empaque para combinar AF con A
-    const detalleEmpaqueProcesado = [];
-    const mapaEmpaques = new Map();
-
-    detalleEmpaque.forEach((detalle) => {
-      const key = `${detalle.id_empaque}_${detalle.tipo === "AF" ? "A" : detalle.tipo}`;
-
-      if (detalle.tipo === "AF") {
-        // Si es AF, buscamos si ya existe un registro A con el mismo id_empaque
-        const keyA = `${detalle.id_empaque}_A`;
-
-        if (mapaEmpaques.has(keyA)) {
-          // Si existe, sumamos los valores
-          const existente = mapaEmpaques.get(keyA);
-          existente.total_cajas += detalle.total_cajas;
-          existente.peso_kg += detalle.peso_kg;
-          existente.numero_canastas += detalle.numero_canastas;
-          existente.total_rechazo += detalle.total_rechazo;
-          existente.migas_empaque += detalle.migas_empaque;
-          // Agregamos el ID del AF para referencia si es necesario
-          existente.ids_af = existente.ids_af || [];
-          existente.ids_af.push(detalle.id);
-        } else {
-          // Si no existe un A, creamos uno nuevo con los datos del AF
-          const nuevoRegistro = {
-            ...detalle.toJSON(),
-            tipo: "A",
-            ids_af: [detalle.id],
-          };
-          mapaEmpaques.set(keyA, nuevoRegistro);
-        }
-      } else {
-        // Si es tipo A u otro, simplemente lo agregamos o actualizamos
-        if (mapaEmpaques.has(key)) {
-          // Si ya existe (por ejemplo, por un AF que se convirtió), sumamos
-          const existente = mapaEmpaques.get(key);
-          existente.total_cajas += detalle.total_cajas;
-          existente.peso_kg += detalle.peso_kg;
-          existente.numero_canastas += detalle.numero_canastas;
-          existente.total_rechazo += detalle.total_rechazo;
-          existente.migas_empaque += detalle.migas_empaque;
-        } else {
-          // Si no existe, lo agregamos
-          mapaEmpaques.set(key, { ...detalle.toJSON() });
-        }
-      }
-    });
-
-    // Convertir el mapa a array
-    detalleEmpaqueProcesado.push(...mapaEmpaques.values());
 
     return {
       produccion: produccion,
       registroAreaEmpaque: registroAreaEmpaque,
-      detalleEmpaque: detalleEmpaqueProcesado,
+      detalleEmpaque: detalleEmpaque,
     };
   } catch (error) {
     console.error("❌ Error en service:", error);
@@ -107,24 +57,27 @@ export const obtenerDatosPdf = async (orden) => {
   }
 };
 
-
-
 export const obtenerHistorialSobrante = async (orden, fecha, transaction) => {
   try {
-    const existeOrden = await HistorialSobrantes.findOne({
-      where: { orden: orden },
+    // Verificar si la nueva orden ya tiene sobrantes asignados
+    const ordenYaTieneSobrantes = await Bodega.findOne({
+      where: {
+        orden: orden,
+        estado: 2,
+      },
       transaction,
     });
 
-    if (existeOrden) {
+    if (ordenYaTieneSobrantes) {
       return {
         sobrantes: [],
         total_registros: 0,
         creado: false,
-        mensaje: "La orden ya existe en sobrantes, no se procesó.",
+        mensaje: "Esta orden ya tiene sobrantes de contenedor anterior",
       };
     }
 
+    // Tomar todos los sobrantes disponibles (estado 0)
     const sobrantes = await HistorialSobrantes.findAll({
       where: { estado: 0 },
       raw: true,
@@ -136,44 +89,29 @@ export const obtenerHistorialSobrante = async (orden, fecha, transaction) => {
         sobrantes: [],
         total_registros: 0,
         creado: false,
+        mensaje: "No hay sobrantes disponibles",
       };
     }
 
-    // 🧮 Calcular totales
-    const totales = sobrantes.reduce(
-      (acc, item) => {
-        acc.tipo_a += item.tipo_a || 0;
-        acc.tipo_b += item.tipo_b || 0;
-        acc.tipo_c += item.tipo_c || 0;
-        acc.tipo_af += item.tipo_af || 0;
-        acc.tipo_bh += item.tipo_bh || 0;
-        acc.tipo_xl += item.tipo_xl || 0;
-        acc.tipo_cil += item.tipo_cil || 0;
-        acc.tipo_p += item.tipo_p || 0;
-        return acc;
-      },
-      {
-        tipo_a: 0,
-        tipo_b: 0,
-        tipo_c: 0,
-        tipo_af: 0,
-        tipo_bh: 0,
-        tipo_xl: 0,
-        tipo_cil: 0,
-        tipo_p: 0,
-      },
-    );
-
-    // 🏭 Crear en Bodega
-    await Bodega.create(
-      {
-        fecha_produccion: fecha,
-        orden: orden,
-        ...totales,
-        estado: 2,
-      },
-      { transaction },
-    );
+    // 🏭 Crear registros INDIVIDUALES en Bodega (uno por cada lote)
+    for (const sobrante of sobrantes) {
+      await Bodega.create(
+        {
+          fecha_produccion: sobrante.fecha_produccion, // ← La fecha original del lote
+          orden: orden, // Nueva orden
+          tipo_a: sobrante.tipo_a || 0,
+          tipo_b: sobrante.tipo_b || 0,
+          tipo_c: sobrante.tipo_c || 0,
+          tipo_af: sobrante.tipo_af || 0,
+          tipo_bh: sobrante.tipo_bh || 0,
+          tipo_xl: sobrante.tipo_xl || 0,
+          tipo_cil: sobrante.tipo_cil || 0,
+          tipo_p: sobrante.tipo_p || 0,
+          estado: 2, // 2 = Cajas de contenedor anterior
+        },
+        { transaction },
+      );
+    }
 
     // 🔄 Marcar sobrantes como procesados
     await HistorialSobrantes.update(
@@ -191,7 +129,6 @@ export const obtenerHistorialSobrante = async (orden, fecha, transaction) => {
       sobrantes,
       total_registros: sobrantes.length,
       creado: true,
-      totales,
     };
   } catch (error) {
     console.error("❌ Error en obtenerHistorialSobrante:", error);
@@ -279,27 +216,51 @@ export const obtenerHistorialEnvios = async (orden) => {
 
 // services/bodegaService.mjs
 export const registrarEnvio = async (data) => {
+  console.log("🔧 ========== INICIO REGISTRO ENVÍO ==========");
   console.log("🔧 Service recibió:", JSON.stringify(data, null, 2));
+  console.log("🔧 Timestamp:", new Date().toISOString());
 
-  const { fecha, enviados, sobrantes, orden } = data;
+  const { fecha, enviados, sobrantes_por_lote, orden } = data;
 
   try {
     // 👇 VALIDACIÓN: Verificar si ya existe un registro con esta orden
     console.log("🔍 Verificando si la orden ya está registrada:", orden);
+    console.log("🔍 Tipo de orden:", typeof orden);
+    console.log("🔍 Valor de orden:", orden);
 
     const envioExistente = await HistorialEnvios.findOne({
       where: { orden: orden },
     });
 
     if (envioExistente) {
-      console.log("❌ La orden ya tiene un registro:", envioExistente.id);
+      console.log("❌ La orden ya tiene un registro:", {
+        id: envioExistente.id,
+        fecha: envioExistente.fecha,
+        fecha_registro: envioExistente.fecha_registro
+      });
       throw new Error(
-        `La orden ${orden} ya tiene un envío registrado el día ${envioExistente.fecha}`,
+        `La orden ${orden} ya tiene un envío registrado el día ${envioExistente.fecha_registro}`,
       );
+    } else {
+      console.log("✅ Orden disponible para registrar");
     }
 
     // 1. Guardar registro de envío
-    console.log("💾 Guardando en HistorialEnvios...");
+    console.log("💾 ===== Guardando en HistorialEnvios =====");
+    console.log("💾 Datos a guardar en HistorialEnvios:", {
+      fecha: fecha,
+      orden: orden,
+      tipo_a: enviados.A || 0,
+      tipo_b: enviados.B || 0,
+      tipo_c: enviados.C || 0,
+      tipo_af: enviados.AF || 0,
+      tipo_bh: enviados.BH || 0,
+      tipo_xl: enviados.XL || 0,
+      tipo_cil: enviados.CIL || 0,
+      tipo_p: enviados.PINTON || 0,
+      fecha_registro: new Date()
+    });
+
     const registroEnvio = await HistorialEnvios.create({
       fecha: fecha,
       orden: orden,
@@ -314,48 +275,148 @@ export const registrarEnvio = async (data) => {
       fecha_registro: new Date(),
     });
 
-    console.log("✅ Envío guardado con ID:", registroEnvio.id);
+    console.log("✅ Envío guardado con éxito:");
+    console.log("   - ID:", registroEnvio.id);
+    console.log("   - Fecha lote:", registroEnvio.fecha);
+    console.log("   - Orden:", registroEnvio.orden);
+    console.log("   - Fecha registro:", registroEnvio.fecha_registro);
 
-    // 2. Verificar si hay sobrantes
-    const haySobrantes = Object.values(sobrantes).some((val) => val > 0);
-    console.log("📊 Hay sobrantes?", haySobrantes);
+    // 2. Guardar sobrantes por lote (si hay)
+    console.log("📦 ===== Procesando sobrantes =====");
+    console.log("📦 sobrantes_por_lote recibido:", sobrantes_por_lote);
+    console.log("📦 ¿Es array?", Array.isArray(sobrantes_por_lote));
+    console.log("📦 Longitud:", sobrantes_por_lote?.length || 0);
 
-    let registroSobrantes = null;
-    if (haySobrantes) {
-      console.log("💾 Guardando en HistorialSobrantes...");
-      registroSobrantes = await HistorialSobrantes.create({
-        fecha: fecha,
-        orden: orden,
-        tipo_a: sobrantes.A || 0,
-        tipo_b: sobrantes.B || 0,
-        tipo_c: sobrantes.C || 0,
-        tipo_af: sobrantes.AF || 0,
-        tipo_bh: sobrantes.BH || 0,
-        tipo_xl: sobrantes.XL || 0,
-        tipo_cil: sobrantes.CIL || 0,
-        tipo_p: sobrantes.PINTON || 0,
-        fecha_registro: new Date(),
-        estado: 0,
-      });
-      console.log("✅ Sobrantes guardados con ID:", registroSobrantes.id);
+    const sobrantesGuardados = [];
+
+    if (sobrantes_por_lote && sobrantes_por_lote.length > 0) {
+      console.log(
+        `💾 Guardando ${sobrantes_por_lote.length} lotes con sobrantes...`,
+      );
+
+      // Guardar cada lote individualmente (sin transacción)
+      for (let i = 0; i < sobrantes_por_lote.length; i++) {
+        const lote = sobrantes_por_lote[i];
+        console.log(`\n📋 Procesando lote #${i + 1}:`, lote);
+        console.log(`   - fecha_produccion:`, lote.fecha_produccion);
+        console.log(`   - Tipo A:`, lote.A);
+        console.log(`   - Tipo B:`, lote.B);
+        console.log(`   - Tipo C:`, lote.C);
+        console.log(`   - Tipo AF:`, lote.AF);
+        console.log(`   - Tipo BH:`, lote.BH);
+        console.log(`   - Tipo XL:`, lote.XL);
+        console.log(`   - Tipo CIL:`, lote.CIL);
+        console.log(`   - Tipo PINTON:`, lote.PINTON);
+
+        // Verificar si hay al menos un valor > 0 en este lote
+        const valores = Object.values(lote).filter(val => typeof val === "number");
+        const tieneSobrantes = valores.some(val => val > 0);
+        
+        console.log(`   🔍 ¿Tiene sobrantes?`, tieneSobrantes);
+        console.log(`   🔍 Valores numéricos:`, valores);
+
+        if (tieneSobrantes) {
+          console.log(`   💾 Creando registro en HistorialSobrantes...`);
+          
+          const datosSobrante = {
+            fecha: lote.fecha_produccion,
+            orden: orden,
+            tipo_a: lote.A || 0,
+            tipo_b: lote.B || 0,
+            tipo_c: lote.C || 0,
+            tipo_af: lote.AF || 0,
+            tipo_bh: lote.BH || 0,
+            tipo_xl: lote.XL || 0,
+            tipo_cil: lote.CIL || 0,
+            tipo_p: lote.PINTON || 0,
+            fecha_registro: new Date(),
+            estado: 0,
+          };
+          
+          console.log(`   📝 Datos a guardar:`, datosSobrante);
+
+          const registroSobrante = await HistorialSobrantes.create(datosSobrante);
+
+          console.log(`   ✅ Sobrantes guardados para lote ${lote.fecha_produccion}:`);
+          console.log(`      - ID:`, registroSobrante.id);
+          console.log(`      - Fecha lote:`, registroSobrante.fecha);
+          console.log(`      - Fecha registro:`, registroSobrante.fecha_registro);
+
+          sobrantesGuardados.push(registroSobrante);
+        } else {
+          console.log(`   ⏭️ Lote sin sobrantes, no se guarda`);
+        }
+      }
+
+      console.log(`✅ Total de lotes con sobrantes guardados: ${sobrantesGuardados.length}`);
+      
+    } else {
+      console.log("📊 No hay sobrantes por lote para guardar");
     }
 
-    return {
+    // Calcular totales para el mensaje
+    console.log("\n📊 ===== Calculando totales =====");
+    const totalSobrantes = sobrantesGuardados.reduce(
+      (acc, item) => {
+        return {
+          A: acc.A + (item.tipo_a || 0),
+          B: acc.B + (item.tipo_b || 0),
+          C: acc.C + (item.tipo_c || 0),
+          AF: acc.AF + (item.tipo_af || 0),
+          BH: acc.BH + (item.tipo_bh || 0),
+          XL: acc.XL + (item.tipo_xl || 0),
+          CIL: acc.CIL + (item.tipo_cil || 0),
+          PINTON: acc.PINTON + (item.tipo_p || 0),
+        };
+      },
+      { A: 0, B: 0, C: 0, AF: 0, BH: 0, XL: 0, CIL: 0, PINTON: 0 },
+    );
+
+    console.log("📊 Totales calculados:", totalSobrantes);
+
+    const resultado = {
       success: true,
-      message: haySobrantes
-        ? "Envío y sobrantes registrados correctamente"
-        : "Envío registrado correctamente",
+      message:
+        sobrantesGuardados.length > 0
+          ? `Envío registrado con ${sobrantesGuardados.length} lote(s) con sobrantes`
+          : "Envío registrado correctamente (sin sobrantes)",
       data: {
-        envio: registroEnvio,
-        sobrantes: registroSobrantes,
+        envio: {
+          id: registroEnvio.id,
+          fecha: registroEnvio.fecha,
+          orden: registroEnvio.orden,
+          fecha_registro: registroEnvio.fecha_registro
+        },
+        sobrantes: sobrantesGuardados.map(s => ({
+          id: s.id,
+          fecha: s.fecha,
+          fecha_registro: s.fecha_registro
+        })),
         resumen: {
           enviados,
-          sobrantes,
+          total_sobrantes: totalSobrantes,
+          lotes_con_sobrantes: sobrantesGuardados.length,
         },
       },
     };
+
+    console.log("✅ ========== FIN REGISTRO ENVÍO EXITOSO ==========");
+    console.log("✅ Resultado:", JSON.stringify(resultado, null, 2));
+    
+    return resultado;
+
   } catch (error) {
-    console.error("❌ Error en service:", error);
+    console.error("\n❌ ========== ERROR EN SERVICE ==========");
+    console.error("❌ Tipo de error:", error.name);
+    console.error("❌ Mensaje:", error.message);
+    console.error("❌ Stack:", error.stack);
+    if (error.original) {
+      console.error("❌ Error original de BD:", error.original);
+    }
+    if (error.errors) {
+      console.error("❌ Errores de validación:", error.errors);
+    }
+    console.error("❌ ======================================");
     throw error;
   }
 };
@@ -622,7 +683,12 @@ export const getAllLotes = async (lote, idProduccion, tipo) => {
   );
 
   // Calculamos saldo de canastillas
-  const saldo = infoCajas.map((fritura) => {
+  // Filtrar solo los elementos que tienen detalle
+  const infoCajasConDetalle = infoCajas.filter(
+    (fritura) => fritura.detalle && fritura.detalle.length > 0,
+  );
+
+  const saldo = infoCajasConDetalle.map((fritura) => {
     const empaquesDelLote = proveedoresEmpaque.filter(
       (e) =>
         e.lote_produccion === fritura.detalle[0].lote_produccion &&
@@ -633,6 +699,7 @@ export const getAllLotes = async (lote, idProduccion, tipo) => {
       (acc, e) => acc + e.canastas,
       0,
     );
+
     return {
       lote_produccion: fritura.detalle[0].lote_produccion,
       lote_proveedor: fritura.detalle[0].lote_proveedor ?? "",
@@ -693,7 +760,6 @@ export const getDetalles = async (orden, req, res) => {
           model: RegistroAreaEmpaque,
           as: "empaque",
           attributes: ["id", "orden", "fecha_empaque"],
-          // Aquí puedes agregar el where si lo necesitas
           where: { orden: orden },
         },
       ],
@@ -724,8 +790,8 @@ export const getDetalles = async (orden, req, res) => {
       };
     }
 
-    // Objeto para agrupar por proveedor
-    const sumasPorProveedor = {};
+    // Objeto para agrupar por fecha de producción
+    const sumasPorFecha = {};
     // Objeto para totales generales
     const totalesGenerales = {
       A: 0,
@@ -739,15 +805,33 @@ export const getDetalles = async (orden, req, res) => {
     };
 
     lotes.forEach((lote) => {
+      const fechaProduccion = lote.fecha_produccion || "Sin fecha";
       const proveedor = lote.proveedor?.nombre ?? "Sin proveedor";
       const tipo = lote.tipo;
       const cajas = lote.cajas || 0;
 
-      // Inicializar proveedor si no existe
-      if (!sumasPorProveedor[proveedor]) {
-        sumasPorProveedor[proveedor] = {
-          id_proveedor: lote.proveedor.id,
-          proveedor: proveedor,
+      // Inicializar fecha si no existe
+      if (!sumasPorFecha[fechaProduccion]) {
+        sumasPorFecha[fechaProduccion] = {
+          fecha_produccion: fechaProduccion,
+          proveedores: {}, // Para mantener el detalle por proveedor si es necesario
+          A: 0,
+          B: 0,
+          C: 0,
+          AF: 0,
+          BH: 0,
+          XL: 0,
+          CIL: 0,
+          PINTON: 0,
+          total_cajas: 0,
+        };
+      }
+
+      // Inicializar proveedor dentro de la fecha si quieres mantener el detalle
+      if (!sumasPorFecha[fechaProduccion].proveedores[proveedor]) {
+        sumasPorFecha[fechaProduccion].proveedores[proveedor] = {
+          nombre: proveedor,
+          id_proveedor: lote.proveedor?.id,
           A: 0,
           B: 0,
           C: 0,
@@ -759,51 +843,79 @@ export const getDetalles = async (orden, req, res) => {
         };
       }
 
-      // Sumar por tipo (mapeo de tipos a columnas)
+      // Sumar por tipo para la fecha
       switch (tipo) {
         case "A":
-          sumasPorProveedor[proveedor].A += cajas;
+          sumasPorFecha[fechaProduccion].A += cajas;
+          sumasPorFecha[fechaProduccion].proveedores[proveedor].A += cajas;
           totalesGenerales.A += cajas;
           break;
         case "B":
-          sumasPorProveedor[proveedor].B += cajas;
+          sumasPorFecha[fechaProduccion].B += cajas;
+          sumasPorFecha[fechaProduccion].proveedores[proveedor].B += cajas;
           totalesGenerales.B += cajas;
           break;
         case "C":
-          sumasPorProveedor[proveedor].C += cajas;
+          sumasPorFecha[fechaProduccion].C += cajas;
+          sumasPorFecha[fechaProduccion].proveedores[proveedor].C += cajas;
           totalesGenerales.C += cajas;
           break;
         case "AF":
-          sumasPorProveedor[proveedor].AF += cajas;
+          sumasPorFecha[fechaProduccion].AF += cajas;
+          sumasPorFecha[fechaProduccion].proveedores[proveedor].AF += cajas;
           totalesGenerales.AF += cajas;
           break;
         case "BH":
-          sumasPorProveedor[proveedor].BH += cajas;
+          sumasPorFecha[fechaProduccion].BH += cajas;
+          sumasPorFecha[fechaProduccion].proveedores[proveedor].BH += cajas;
           totalesGenerales.BH += cajas;
           break;
         case "XL":
-          sumasPorProveedor[proveedor].XL += cajas;
+          sumasPorFecha[fechaProduccion].XL += cajas;
+          sumasPorFecha[fechaProduccion].proveedores[proveedor].XL += cajas;
           totalesGenerales.XL += cajas;
           break;
         case "CIL":
         case "CILINDRO":
-          sumasPorProveedor[proveedor].CIL += cajas;
+          sumasPorFecha[fechaProduccion].CIL += cajas;
+          sumasPorFecha[fechaProduccion].proveedores[proveedor].CIL += cajas;
           totalesGenerales.CIL += cajas;
           break;
         case "PINTON":
-          sumasPorProveedor[proveedor].PINTON += cajas;
+          sumasPorFecha[fechaProduccion].PINTON += cajas;
+          sumasPorFecha[fechaProduccion].proveedores[proveedor].PINTON += cajas;
           totalesGenerales.PINTON += cajas;
           break;
         default:
-          // Si hay algún tipo no mapeado, podrías manejarlo aquí
           console.log(`Tipo no reconocido: ${tipo}`);
       }
+
+      // Calcular total de cajas por fecha
+      sumasPorFecha[fechaProduccion].total_cajas += cajas;
     });
 
-    const data = [
-      ...Object.values(sumasPorProveedor),
-      { cajasContenedorAnterior },
-    ];
+    // Convertir el objeto de proveedores a array para cada fecha
+    const data = Object.values(sumasPorFecha).map((fecha) => ({
+      fecha_produccion: fecha.fecha_produccion,
+      total_cajas: fecha.total_cajas,
+      A: fecha.A,
+      B: fecha.B,
+      C: fecha.C,
+      AF: fecha.AF,
+      BH: fecha.BH,
+      XL: fecha.XL,
+      CIL: fecha.CIL,
+      PINTON: fecha.PINTON,
+      proveedores: Object.values(fecha.proveedores),
+    }));
+
+    // Ordenar por fecha (más reciente primero)
+    data.sort(
+      (a, b) => new Date(b.fecha_produccion) - new Date(a.fecha_produccion),
+    );
+
+    // Agregar cajas del contenedor anterior
+    data.push({ cajasContenedorAnterior });
 
     cajasContenedorAnterior.forEach((c) => {
       totalesGenerales.A += c.tipo_a || 0;
@@ -818,7 +930,7 @@ export const getDetalles = async (orden, req, res) => {
 
     return {
       success: true,
-      message: "Detalle de cajas por proveedor",
+      message: "Detalle de cajas por fecha de producción",
       data: data,
       totales: totalesGenerales,
     };

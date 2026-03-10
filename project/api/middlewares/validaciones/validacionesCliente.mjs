@@ -4,6 +4,7 @@ export const validarCliente = celebrate({
   [Segments.BODY]: Joi.object().keys({
     nombre: Joi.string().min(3).required(),
     destino: Joi.string().min(3).required(),
+    numero_solicitud: Joi.number().optional(),
     puerto_embarque: Joi.string().min(3).required(),
     puerto_llegada: Joi.string().min(3).required(),
   }),

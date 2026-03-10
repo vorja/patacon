@@ -19,16 +19,16 @@ import { sendResponse, StatusCodes } from "../../helpers/statusCode.mjs";
 export const registrarEnvioSobrantes = async (req, res) => {
   try {
     console.log("📦 Datos recibidos:", req.body);
-    
-    const { fecha, enviados, sobrantes, orden } = req.body;
-    
+
+    const { fecha, enviados, sobrantes_por_lote, orden } = req.body;
+
     // Validar datos requeridos
     if (!fecha || !orden) {
       return sendResponse(
         res,
         StatusCodes.BAD_REQUEST,
         null,
-        "Fecha y orden son requeridas"
+        "Fecha y orden son requeridas",
       );
     }
 
@@ -37,54 +37,78 @@ export const registrarEnvioSobrantes = async (req, res) => {
         res,
         StatusCodes.BAD_REQUEST,
         null,
-        "Datos de envío son requeridos"
+        "Datos de envío son requeridos",
       );
     }
 
-    // Validar que haya algo para enviar
-    const totalEnvio = Object.values(enviados).reduce((acc, val) => acc + (val || 0), 0);
-    if (totalEnvio === 0) {
+    // Validar que haya sobrantes_por_lote (puede ser array vacío si no hay sobrantes)
+    if (!sobrantes_por_lote || !Array.isArray(sobrantes_por_lote)) {
       return sendResponse(
         res,
         StatusCodes.BAD_REQUEST,
         null,
-        "No hay productos para enviar"
+        "sobrantes_por_lote debe ser un array",
       );
+    }
+
+    // Validar que haya algo para enviar
+    const totalEnvio = Object.values(enviados).reduce(
+      (acc, val) => acc + (val || 0),
+      0,
+    );
+    if (totalEnvio === 0 && sobrantes_por_lote.length === 0) {
+      return sendResponse(
+        res,
+        StatusCodes.BAD_REQUEST,
+        null,
+        "No hay productos para enviar ni sobrantes para registrar",
+      );
+    }
+
+    // Validar estructura de cada lote
+    for (const lote of sobrantes_por_lote) {
+      if (!lote.fecha_produccion) {
+        return sendResponse(
+          res,
+          StatusCodes.BAD_REQUEST,
+          null,
+          "Cada lote debe tener fecha_produccion",
+        );
+      }
     }
 
     // Llamar al servicio
     const resultado = await registrarEnvio({
       fecha,
       enviados,
-      sobrantes: sobrantes || { A:0, B:0, C:0, AF:0, BH:0, XL:0, CIL:0, PINTON:0 },
-      orden
+      sobrantes_por_lote,
+      orden,
     });
 
     return sendResponse(
       res,
       StatusCodes.SUCCESS,
       resultado.data,
-      resultado.message
+      resultado.message,
     );
-
   } catch (error) {
     console.error("❌ Error en controlador:", error);
-    
+
     // 👉 Si es error de orden duplicada, enviar mensaje específico
     if (error.message.includes("ya tiene un envío registrado")) {
       return sendResponse(
         res,
         StatusCodes.CONFLICT, // 409 Conflict
         null,
-        error.message
+        error.message,
       );
     }
-    
+
     return sendResponse(
       res,
       StatusCodes.ERROR,
       null,
-      error.message || "Error al registrar el envío"
+      error.message || "Error al registrar el envío",
     );
   }
 };

@@ -108,7 +108,6 @@
                         <h5> <span class="badge fw-bold rounded p-2 mt-3"
                                 style="font-size: medium; background-color: #313146 ;">Información Especifica</span>
                         </h5>
-
                     </div>
                     <div class="mb-3 col-md-6">
                         <label for="puerto_embarque" class="form-label">Puerto de Embarque</label>
@@ -125,6 +124,13 @@
                         <input type="text" class="form-control rounded shadow-sm" name="destino"
                             placeholder="Ingrese el destino..." id="destino">
                     </div>
+
+                    <div class="mb-2 col-md-6">
+                        <label for="numero_solicitud" class="form-label">Numero de Produccion </label>
+                        <input type="text" class="form-control rounded shadow-sm" name="numero_solicitud"
+                            placeholder="Ingrese el numero de produccion" id="numero_solicitud">
+                    </div>
+
                     <div class="col-12 text-end">
                         <button type="submit" class="btn text-white"
                             style="background-color: #5dbb1f">Registrar</button>
@@ -183,6 +189,11 @@
                         <label for="destino_info" class="form-label">Destino </label>
                         <input type="text" class="form-control  rounded shadow-sm" name="destino" id="destino_info"
                             readonly>
+                    </div>
+                    <div class="mb-2 col-md-6">
+                        <label for="numero_solicitud_info" class="form-label">Numero de Produccion </label>
+                        <input type="text" class="form-control rounded shadow-sm" name="numero_solicitud_info"
+                            placeholder="Ingrese el numero de produccion" id="numero_solicitud_info">
                     </div>
                 </div>
             </div>

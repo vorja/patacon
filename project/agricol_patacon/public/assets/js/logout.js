@@ -277,15 +277,22 @@ document.addEventListener("DOMContentLoaded", function () {
 
     function startSessionCheck() {
         // Verificar cada 5 minutos
-        sessionCheckInterval = setInterval(async () => {
-            const currentPath = window.location.pathname;
-            const publicRoutes = ["/login", "/register", "/forgot-password"];
+        sessionCheckInterval = setInterval(
+            async () => {
+                const currentPath = window.location.pathname;
+                const publicRoutes = [
+                    "/login",
+                    "/register",
+                    "/forgot-password",
+                ];
 
-            // Solo verificar en rutas protegidas
-            if (!publicRoutes.includes(currentPath)) {
-                await checkSession();
-            }
-        }, 5 * 60 * 1000); // 5 minutos
+                // Solo verificar en rutas protegidas
+                if (!publicRoutes.includes(currentPath)) {
+                    await checkSession();
+                }
+            },
+            5 * 60 * 1000,
+        ); // 5 minutos
     }
 
     function stopSessionCheck() {

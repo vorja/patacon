@@ -10,29 +10,55 @@ import LotesFritura from "../models/lotesProduccion.mjs";
 import DetalleEmpaque from "../models/detalleEmpaque.mjs";
 
 export const create = async (data) => {
+  console.log("🚀 INICIO - create empaque");
+  console.log(
+    "📦 Data recibida:",
+    JSON.stringify(
+      {
+        tieneCajas: !!data.cajas,
+        cantidadCajas: data.cajas?.length,
+        tieneInfoEmpaque: !!data.infoEmpaque,
+        cantidadInfoEmpaque: data.infoEmpaque?.length,
+        tieneProveedores: !!data.proveedores,
+        orden: data.registroEmpaque?.orden,
+      },
+      null,
+      2,
+    ),
+  );
+
   const transaction = await sequelize.transaction();
+  console.log("🔰 Transacción iniciada");
 
   try {
     const { cajas, infoEmpaque, proveedores, ...registroEmpaque } = data;
 
     // Validar que el array cajas exista y tenga elementos
     if (!cajas || !Array.isArray(cajas) || cajas.length === 0) {
+      console.error("❌ Validación fallida: array cajas vacío o inválido");
       await transaction.rollback();
       throw new Error("El array 'cajas' es requerido y no puede estar vacío.");
     }
+    console.log(`✅ Validación exitosa: ${cajas.length} cajas a procesar`);
 
     // 1. Crear registro principal
+    console.log("📝 Creando registro principal de empaque...");
     const registroAreaEmpaque = await RegistroAreaEmpaque.create(
       registroEmpaque,
       { transaction },
     );
 
     if (!registroAreaEmpaque?.id) {
+      console.error("❌ Falló creación de registro principal");
       await transaction.rollback();
       throw new Error("No se pudo crear el registro principal.");
     }
+    console.log(
+      `✅ Registro principal creado con ID: ${registroAreaEmpaque.id}`,
+    );
 
     // 2. Crear detalles de lotes
+    console.log("📦 Creando detalles de lotes...");
     const resLotes = await createDetalleLotes(
       infoEmpaque,
       registroAreaEmpaque,
@@ -41,11 +67,14 @@ export const create = async (data) => {
     );
 
     if (!resLotes) {
+      console.error("❌ Falló creación de lotes");
       await transaction.rollback();
       throw new Error("No se pudo guardar los lotes de producción.");
     }
+    console.log(`✅ Lotes creados exitosamente`);
 
     // 3. Crear detalles de proveedores
+    console.log("🏭 Creando detalles de proveedores...");
     const resProveedores = await createDetalleProveedor(
       proveedores,
       registroAreaEmpaque.id,
@@ -53,11 +82,14 @@ export const create = async (data) => {
     );
 
     if (!resProveedores) {
+      console.error("❌ Falló creación de proveedores");
       await transaction.rollback();
       throw new Error("No se pudo guardar el detalle de los Proveedores.");
     }
+    console.log(`✅ Proveedores creados exitosamente`);
 
     // 4. Crear detalles de cajas
+    console.log("📦 Creando detalles de cajas...");
     const resCajas = await createDetalleCaja(
       cajas,
       registroAreaEmpaque.id,
@@ -65,11 +97,14 @@ export const create = async (data) => {
     );
 
     if (!resCajas) {
+      console.error("❌ Falló creación de cajas");
       await transaction.rollback();
       throw new Error("No se pudo guardar el detalle de las cajas de empaque.");
     }
+    console.log(`✅ Cajas creadas exitosamente`);
 
     // 5. Actualizar bodega
+    console.log("🏢 Actualizando bodega...");
     const tipoMap = {
       A: "tipo_a",
       B: "tipo_b",
@@ -91,18 +126,22 @@ export const create = async (data) => {
       return acc;
     }, {});
 
+    console.log("📊 Conteo por tipos:", conteoTipos);
+
     // Crear registros en Bodega por cada fecha y orden
     const fechas = [...new Set(infoEmpaque.map((r) => r.fecha_produccion))];
+    console.log(`📅 Procesando ${fechas.length} fechas para bodega`);
 
     for (const fecha of fechas) {
+      console.log(`  🔍 Buscando/creando registro para fecha: ${fecha}`);
       const [bodegaRegistro, created] = await Bodega.findOrCreate({
         where: {
           fecha_produccion: fecha,
-          orden: registroEmpaque.orden, // ← AHORA FILTRA POR ORDEN TAMBIÉN
+          orden: registroEmpaque.orden,
         },
         defaults: {
           fecha_produccion: fecha,
-          orden: registroEmpaque.orden, // ← GUARDA LA ORDEN
+          orden: registroEmpaque.orden,
           tipo_a: 0,
           tipo_b: 0,
           tipo_c: 0,
@@ -117,6 +156,9 @@ export const create = async (data) => {
       });
 
       if (!created) {
+        console.log(
+          `  📝 Actualizando registro existente para fecha: ${fecha}`,
+        );
         const updates = {};
         Object.keys(conteoTipos).forEach((columna) => {
           updates[columna] = sequelize.literal(
@@ -125,12 +167,17 @@ export const create = async (data) => {
         });
         await bodegaRegistro.update(updates, { transaction });
       } else {
+        console.log(`  ✨ Creando nuevo registro para fecha: ${fecha}`);
         await bodegaRegistro.update(conteoTipos, { transaction });
       }
     }
+    console.log("✅ Bodega actualizada exitosamente");
 
     // 6. Verificar y actualizar estado de lotes de fritura
+    console.log("🔄 Verificando lotes de fritura...");
     for (const item of infoEmpaque) {
+      console.log(`  🔍 Verificando lote: ${item.lote_produccion}`);
+
       const registros = await DetalleEmpaque.findAll({
         attributes: [
           "lote_produccion",
@@ -151,7 +198,14 @@ export const create = async (data) => {
       });
 
       if (registros.length > 0) {
-        if (Number(registros[0].total) == Number(detalle.canastas)) {
+        const totalCanastas = Number(registros[0].total);
+        const canastasLote = Number(detalle.canastas);
+        console.log(
+          `    📊 Canastas procesadas: ${totalCanastas}, Lote requiere: ${canastasLote}`,
+        );
+
+        if (totalCanastas === canastasLote) {
+          console.log(`    ✅ Lote completado, actualizando estado a 0`);
           await LotesFritura.update(
             { estado: 0 },
             {
@@ -159,20 +213,33 @@ export const create = async (data) => {
               transaction,
             },
           );
+        } else {
+          console.log(
+            `    ⏳ Lote pendiente, faltan ${canastasLote - totalCanastas} canastas`,
+          );
         }
       }
     }
 
     // 7. Confirmar transacción
+    console.log("💾 Confirmando transacción...");
     await transaction.commit();
+    console.log(
+      `✅✅✅ PROCESO COMPLETADO - Registro ID: ${registroAreaEmpaque.id}`,
+    );
 
     return registroAreaEmpaque;
   } catch (error) {
     // Rollback automático si ocurre algún error
+    console.error("❌❌❌ ERROR en create empaque:");
+    console.error("  Mensaje:", error.message);
+    console.error("  Stack:", error.stack);
+
     if (transaction && !transaction.finished) {
+      console.log("↩️ Haciendo rollback de transacción");
       await transaction.rollback();
     }
-    console.error("Error en create empaque:", error);
+
     throw new Error(`Error al crear registro de empaque: ${error.message}`);
   }
 };

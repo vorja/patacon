@@ -247,7 +247,7 @@ async function cargarCortes(id) {
                 let api = this.api();
                 let numRegistros = api.rows({ filter: "applied" }).count();
                 let tableWrapper = $(api.table().container());
-                if (numRegistros <= 20) {
+                if (numRegistros <= 10) {
                     tableWrapper.find(".dataTables_paginate").hide();
                 } else {
                     tableWrapper.find(".dataTables_paginate").show();
@@ -340,7 +340,7 @@ async function cargarInfoProveedores(id) {
             destroy: true,
             retrieve: false,
             autoWidth: false,
-            paging: detalles.length > 20,
+            paging: detalles.length > 10,
             columns: [
                 { data: "Proveedor" },
                 { data: "Fecha" },
@@ -352,7 +352,7 @@ async function cargarInfoProveedores(id) {
             drawCallback: function () {
                 var api = this.api();
                 var numRows = api.rows({ page: "current" }).count();
-                if (numRows <= 20) {
+                if (numRows <= 10) {
                     $(api.table().container())
                         .find(".dataTables_paginate")
                         .hide();
@@ -380,7 +380,7 @@ async function cargarInfoProveedores(id) {
             destroy: true,
             retrieve: false,
             autoWidth: false,
-            paging: cortesProveedor.length > 20,
+            paging: cortesProveedor.length > 1,
             columns: [
                 { data: "Proveedor" },
                 { data: "Lote" },
@@ -390,7 +390,7 @@ async function cargarInfoProveedores(id) {
             drawCallback: function () {
                 var api = this.api();
                 var numRows = api.rows({ page: "current" }).count();
-                if (numRows <= 20) {
+                if (numRows <= 1) {
                     $(api.table().container())
                         .find(".dataTables_paginate")
                         .hide();

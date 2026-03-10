@@ -11,6 +11,7 @@ const elements_cliente = {
     nombre: document.querySelector("#nombre"),
     puerto_embarque: document.querySelector("#puerto_embarque"),
     destino: document.querySelector("#destino"),
+    numero_solicitud: document.querySelector("#numero_solicitud"),
     puerto_llegada: document.querySelector("#puerto_llegada"),
     orden_compra: document.querySelector("#orden_compra"),
     formCliente: document.querySelector("#formCliente"),
@@ -173,6 +174,7 @@ async function abrirEditar(idCliente) {
     elements_cliente.puerto_embarque.value = data.puerto_embarque;
     elements_cliente.destino.value = data.destino;
     elements_cliente.puerto_llegada.value = data.puerto_llegada;
+    elements_cliente.numero_solicitud.value = data.numero_solicitud;
 
     $("#ModalClientes").modal("show");
 }
@@ -262,6 +264,7 @@ async function formCliente(e) {
         puerto_embarque: elements_cliente.puerto_embarque.value,
         destino: elements_cliente.destino.value,
         puerto_llegada: elements_cliente.puerto_llegada.value,
+        numero_solicitud: elements_cliente.numero_solicitud.value,
     };
     try {
         // Sanitiza y valida
@@ -317,7 +320,7 @@ async function guardarCliente(data) {
 
 async function actualizarCliente(id, data) {
     try {
-        const response = await API_CLIENTE.put(`/update/${id}`, data, {
+        const response = await API_CLIENTE.put(`/editar/${id}`, data, {
             headers: {
                 "Content-Type": "application/json",
                 Authorization: "Bearer " + token,
@@ -390,6 +393,8 @@ async function infoCliente(id) {
         document.querySelector("#puerto_embarque_info").value =
             data.puerto_embarque;
         document.querySelector("#destino_info").value = data.destino;
+        document.querySelector("#numero_solicitud_info").value =
+            data.numero_solicitud;
 
         document.querySelector("#puerto_llegada_info").value =
             data.puerto_llegada;

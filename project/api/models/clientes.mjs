@@ -13,6 +13,10 @@ const Cliente = sequelize.define(
       type: DataTypes.STRING(100),
       allowNull: false,
     },
+    numero_solicitud: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+    },
     destino: {
       type: DataTypes.STRING(200),
       allowNull: false,
@@ -34,7 +38,7 @@ const Cliente = sequelize.define(
   {
     tableName: "clientes",
     timestamps: false,
-  }
+  },
 );
 
 export default Cliente;

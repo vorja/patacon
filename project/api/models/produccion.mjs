@@ -15,7 +15,11 @@ const Produccion = sequelize.define(
       allowNull: false,
       unique: true,
     },
-    cliente_relacionado:{
+    numero_orden: {
+      type: DataTypes.STRING(45),
+      allowNull: true,
+    },
+    cliente_relacionado: {
       type: DataTypes.STRING(45),
       allowNull: true,
     },
@@ -54,7 +58,7 @@ const Produccion = sequelize.define(
   {
     tableName: "producciones",
     timestamps: false,
-  }
+  },
 );
 Produccion.belongsTo(Responsable, {
   as: "responsable",

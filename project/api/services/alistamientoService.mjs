@@ -181,7 +181,9 @@ export const getAll = async (orden) => {
             },
           ],
           attributes: ["cantidades", "maduro", "rechazo", "id_pelador"],
-          where: { id_alistamiento: alistamiento.id },
+          where: {
+            id_alistamiento: alistamiento.id,
+          },
         });
 
         return {
@@ -214,14 +216,15 @@ export const getAll = async (orden) => {
     });
 
     // Calcular promedio con base en las cantidades acumuladas
-    const promedioPelador = Object.entries(acumuladorCantidades).map(
-      ([id_pelador, { sumaCantidades, contador, pelador }]) => ({
+    const promedioPelador = Object.entries(acumuladorCantidades)
+      .map(([id_pelador, { sumaCantidades, contador, pelador }]) => ({
         id_pelador,
         pelador: pelador.nombre ?? "",
         promedio: (sumaCantidades / contador).toFixed(1),
         total: sumaCantidades,
-      }),
-    );
+      }))
+      .sort((a, b) => b.total - a.total); // Ordenar de mayor a menor por total
+
     return {
       alistamientos,
       promedios,
@@ -351,6 +354,7 @@ export const getInfoPdf = async (id) => {
     throw new Error(error.message);
   }
 };
+
 export const getDetalleById = async (data) => {
   try {
     const detalleAlistamiento = await DetalleAlistamiento.findAll({
@@ -364,6 +368,7 @@ export const getDetalleById = async (data) => {
       attributes: ["totales", "cantidades", "maduro", "rechazo"],
       where: {
         id_alistamiento: data,
+        cantidades: { [Op.gt]: 0 }, 
       },
     });
     const resultado = detalleAlistamiento.map((op) => ({

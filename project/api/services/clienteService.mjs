@@ -13,6 +13,7 @@ export const getAll = async () => {
   const clientes = lista.map((op) => ({
     id: op.id,
     Nombre: op.nombre,
+    Numero_solicitud: op.numero_solicitud,
     Destino: op.destino,
     Embarque: op.puerto_embarque,
     LLegada: op.puerto_llegada,

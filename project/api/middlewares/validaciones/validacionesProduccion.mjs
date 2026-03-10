@@ -3,6 +3,7 @@ import { celebrate, Joi, Segments } from "celebrate";
 export const validarProduccion = celebrate({
   [Segments.BODY]: Joi.object().keys({
     lote_produccion: Joi.string().min(3).required(),
+    numero_orden: Joi.string().allow(null, "").optional(),
     cliente_relacionado: Joi.string().allow(null, "").optional(),
     fecha_creacion: Joi.date().required(),
     fecha_cierre: Joi.date().optional(),

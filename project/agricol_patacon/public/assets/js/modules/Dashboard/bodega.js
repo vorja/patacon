@@ -199,7 +199,7 @@ async function cargar() {
                 let api = this.api();
                 let numRegistros = api.rows({ filter: "applied" }).count();
                 let tableWrapper = $(api.table().container());
-                if (numRegistros <= 20) {
+                if (numRegistros <= 10) {
                     tableWrapper.find(".dataTables_paginate").hide();
                 } else {
                     tableWrapper.find(".dataTables_paginate").show();
@@ -698,7 +698,7 @@ async function cargarCajasLotes() {
                 let api = this.api();
                 let numRegistros = api.rows({ filter: "applied" }).count();
                 let tableWrapper = $(api.table().container());
-                if (numRegistros <= 20) {
+                if (numRegistros <= 10) {
                     tableWrapper.find(".dataTables_paginate").hide();
                 } else {
                     tableWrapper.find(".dataTables_paginate").show();

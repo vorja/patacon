@@ -437,7 +437,7 @@ async function cargarAlistamientos(idOrden) {
                     let api = this.api();
                     let numRegistros = api.rows({ filter: "applied" }).count();
                     let tableWrapper = $(api.table().container());
-                    if (numRegistros <= 20) {
+                    if (numRegistros <= 10) {
                         tableWrapper.find(".dataTables_paginate").hide();
                     } else {
                         tableWrapper.find(".dataTables_paginate").show();
@@ -712,7 +712,7 @@ async function cargarInfoPersonal(dataPeladores) {
         );
 
         if (!dataUpdated) {
-            // Si no se pudo actualizar, crear nueva instancia
+            // Si no se pudo actualizar, crear nueva instancia con ordenamiento desactivado
             DataTableManager.initOrUpdate("tablaInfoPersonal", {
                 data: dataPeladores,
                 searching: false,
@@ -722,6 +722,10 @@ async function cargarInfoPersonal(dataPeladores) {
                     { data: "promedio" },
                     { data: "total" },
                 ],
+                // Desactivar ordenamiento por completo
+                ordering: false,
+                // O alternativamente, establecer un orden personalizado
+                // order: [], // Esto evita el ordenamiento inicial
                 drawCallback: function () {
                     let api = this.api();
                     let numRegistros = api.rows({ filter: "applied" }).count();

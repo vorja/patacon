@@ -910,8 +910,8 @@ const infoAlistamiento = (alistamientos) => {
 
   return {
     canastillas: canastillasTotal,
-    rechazo: rechazoTotal,
-    maduro: maduroTotal,
+    rechazo: Number(rechazoTotal.toFixed(2)),
+    maduro: Number(maduroTotal.toFixed(2)),
   };
 };
 
@@ -974,12 +974,12 @@ const infoEmpaque = (empaques) => {
 
 // Gas y Bidones: Contenedor
 const infoGas = (fritura) => {
-  let porcentajes = 0; // Agumulamos el porcentaje de consumo de gas, de cada reigstro de gritura.
+  let porcentajes = 0;
   const registros = Object.values(
     fritura.reduce((acc, item) => {
       if (!acc[item.fecha]) {
         acc[item.fecha] = {
-          gas: Number(item.gas_inicio || 0) - Number(item.gas_final || 0),
+          gas: Math.max(0, Number(item.gas_inicio || 0) - Number(item.gas_final || 0)),
           bidones: item.inventario_aceite ?? 0,
         };
       }
@@ -991,7 +991,6 @@ const infoGas = (fritura) => {
     0
   );
 
-  // Promedio de consumo de gas.
   registros.forEach((item) => {
     porcentajes += Number(item.gas || 0);
   });
@@ -1038,7 +1037,7 @@ const infoRechazo = (recepcion, alistamiento, corte, fritura, empaque) => {
   return {
     RechazoAreas: {
       Recepcion: rechazoRecepcion,
-      Alistamiento: rechazoAlistamiento,
+      Alistamiento: Number(rechazoAlistamiento.toFixed(2)),
       Corte: rechazoCorte,
       Fritura: rechazoFritura,
       Empaque: rechazoEmpaque,
@@ -1102,6 +1101,7 @@ export const getAll = async () => {
   return lista.map((op) => ({
     id: op.id,
     Lote: op.lote_produccion,
+    Orden: op.numero_orden,
     cliente: op.cliente_relacionado,
     Fecha: op.fecha_creacion,
     Cierre: op.fecha_cierre,
@@ -1114,7 +1114,8 @@ export const getAll = async () => {
 export const getProducciones = async () => {
   const lista = await Produccion.findAll({
     include: { model: Responsable, as: "responsable", attributes: ["nombre"] },
-    where: { estado: 1},
+    where: { estado: 1 },
+    order: [["fecha_creacion", "DESC"]],
   });
 
   if (!lista || lista.length === 0) {
@@ -1343,7 +1344,8 @@ export const getPerformances = async (orden) => {
     "rechazo_empaque",
   ]);
 
-  const fechas = [...new Set(recepciones.map((r) => r.fecha))].map((fecha) => ({
+  const fechas = [...new Set(recepciones.map((
+  ) => r.fecha))].map((fecha) => ({
     fechaProduccion: fecha,
   }));
 
@@ -1506,6 +1508,1107 @@ export const getPerformanceDay = async (fecha) => {
   };
 };
 
+// Trae el rendimiento general sumando todos los días de un contenedor específico
+export const getPerformanceGeneral = async (orden) => {
+  // Validar que la orden existe
+  const produccion = await Produccion.findOne({ where: { id: orden } });
+  if (!produccion) {
+    throw new Error("La Orden de Produccion no existe.");
+  }
+
+  // Obtener todos los registros filtrados por la orden
+  const recepciones = await RegistroRecepcionMateriaPrima.findAll({
+    attributes: ["id", "fecha", "cantidad", "cant_defectos", "lote"],
+    include: [{ model: Proveedor, as: "proveedor", attributes: ["nombre"] }],
+    where: { orden }, // <-- Filtro por orden
+    raw: true,
+    nest: true,
+  });
+
+  if (recepciones.length === 0) {
+    throw new Error(
+      "No hay Registros de Recepciones Disponibles para este contenedor.",
+    );
+  }
+
+  // Obtener todos los cortes filtrados por la orden
+  const cortes = await RegistroAreaCorte.findAll({
+    attributes: [
+      "id",
+      "rendimiento_materia",
+      "fecha",
+      "rechazo_corte",
+      "total_materia",
+    ],
+    where: { orden }, // <-- Filtro por orden
+    raw: true,
+  });
+
+  // Obtener todas las frituras filtradas por la orden
+  const fritura = await RegistroAreaFritura.findAll({
+    attributes: [
+      "id",
+      "materia_fritura",
+      "migas_fritura",
+      "rechazo_fritura",
+      "canastillas",
+      "fecha",
+    ],
+    where: { orden }, // <-- Filtro por orden
+    raw: true,
+  });
+
+  // Obtener todos los alistamientos filtrados por la orden
+  const alistamiento = await ControlAlistamiento.findAll({
+    attributes: ["id", "rechazo", "fecha"],
+    where: { orden }, // <-- Filtro por orden
+    raw: true,
+  });
+
+  // Obtener todos los detalles de empaque (estos no tienen orden directa,
+  // pero se relacionan a través de las fechas de producción)
+  const fechasUnicas = [...new Set(recepciones.map((r) => r.fecha))];
+
+  const detalleEmpaque = await DetalleEmpaque.findAll({
+    attributes: [
+      "tipo",
+      [fn("SUM", col("total_cajas")), "totalCajas"],
+      [fn("SUM", col("peso_kg")), "totalKg"],
+      [fn("SUM", col("total_rechazo")), "rechazo_empaque"],
+    ],
+    where: {
+      fecha_produccion: fechasUnicas, // <-- Filtro por fechas de recepción
+    },
+    group: ["tipo"],
+    raw: true,
+  });
+
+  // Enriquecer datos de proveedores para cortes
+  const corteIds = cortes.map((c) => c.id);
+  const detalleProv = await DetalleAreaCorte.findAll({
+    attributes: ["id_corte", "tipo", "materia"],
+    include: [
+      {
+        model: Proveedor,
+        as: "proveedor",
+        attributes: ["nombre"],
+      },
+    ],
+    where: { id_corte: corteIds },
+    raw: true,
+    nest: true,
+  });
+
+  const proveedoresCorte = await ProveedorCorte.findAll({
+    attributes: [
+      "id_corte",
+      "fecha_produccion",
+      "lote_proveedor",
+      "totalMateria",
+      "rechazo",
+      "rendimiento",
+    ],
+    include: [
+      {
+        model: Proveedor,
+        as: "proveedor",
+        attributes: ["nombre"],
+      },
+    ],
+    where: { id_corte: corteIds },
+    raw: true,
+    nest: true,
+  });
+
+  // CALCULAR TOTALES GENERALES
+
+  // 1. Total Materia Prima Recibida
+  const totalMateriaPrima = recepciones.reduce(
+    (acc, d) => acc + Number(d.cantidad || 0),
+    0,
+  );
+
+  // 2. Total Materia Procesada en Corte
+  const totalMateriaCorte = cortes.reduce(
+    (acc, d) => acc + Number(d.total_materia || 0),
+    0,
+  );
+
+  // 3. Total Materia Procesada en Fritura
+  const totalMateriaFritura = fritura.reduce(
+    (acc, d) => acc + Number(d.materia_fritura || 0),
+    0,
+  );
+
+  // 4. Total Producto Terminado (Empaque)
+  const totalProductoTerminado = detalleEmpaque.reduce(
+    (acc, d) => acc + Number(d.totalKg || 0),
+    0,
+  );
+
+  // 5. Total Cajas Producidas
+  const totalCajas = detalleEmpaque.reduce(
+    (acc, d) => acc + Number(d.totalCajas || 0),
+    0,
+  );
+
+  // 6. Total Canastillas en Fritura
+  const totalCanastillas = fritura.reduce(
+    (acc, d) => acc + Number(d.canastillas || 0),
+    0,
+  );
+
+  // 7. CÁLCULO DE RENDIMIENTOS GENERALES
+  const rendimientoMateriaGeneral =
+    totalMateriaPrima > 0 ? (totalMateriaCorte / totalMateriaPrima) * 100 : 0;
+
+  const rendimientoFrituraGeneral =
+    totalMateriaCorte > 0 ? (totalMateriaFritura / totalMateriaCorte) * 100 : 0;
+
+  const rendimientoHFrituraGeneral =
+    totalMateriaPrima > 0 ? (totalMateriaFritura / totalMateriaPrima) * 100 : 0;
+
+  const rendimientoEmpaqueGeneral =
+    totalMateriaFritura > 0
+      ? (totalProductoTerminado / totalMateriaFritura) * 100
+      : 0;
+
+  const rendimientoTotalGeneral =
+    totalMateriaPrima > 0
+      ? (totalProductoTerminado / totalMateriaPrima) * 100
+      : 0;
+
+  // 8. CÁLCULO DE RECHAZOS GENERALES
+  const rechazoRecepcion = recepciones.reduce(
+    (acc, d) => acc + Number(d.cant_defectos || 0),
+    0,
+  );
+
+  const rechazoAlistamiento = alistamiento.reduce(
+    (acc, a) => acc + Number(a.rechazo || 0),
+    0,
+  );
+
+  const rechazoCorte = cortes.reduce(
+    (acc, c) => acc + Number(c.rechazo_corte || 0),
+    0,
+  );
+
+  const rechazoFritura = fritura.reduce(
+    (acc, d) => acc + Number(d.rechazo_fritura || 0),
+    0,
+  );
+
+  const rechazoEmpaque = detalleEmpaque.reduce(
+    (acc, d) => acc + Number(d.rechazo_empaque || 0),
+    0,
+  );
+
+  const rechazoTotal =
+    rechazoRecepcion +
+    rechazoAlistamiento +
+    rechazoCorte +
+    rechazoFritura +
+    rechazoEmpaque;
+  // 9. RENDIMIENTO POR PROVEEDORES - VERSIÓN CORREGIDA
+  const rendimientoProveedores = {};
+
+  // Primero, agrupar todas las recepciones por proveedor y lote para facilitar la suma
+  const recepcionesPorProveedorYLote = {};
+
+  recepciones.forEach((recep) => {
+    if (recep.proveedor?.nombre && recep.lote) {
+      const key = `${recep.proveedor.nombre}|${recep.lote}`;
+      if (!recepcionesPorProveedorYLote[key]) {
+        recepcionesPorProveedorYLote[key] = {
+          proveedor: recep.proveedor.nombre,
+          lote: recep.lote,
+          totalCantidad: 0,
+        };
+      }
+      recepcionesPorProveedorYLote[key].totalCantidad += Number(
+        recep.cantidad || 0,
+      );
+    }
+  });
+
+  // Procesar los cortes
+  proveedoresCorte.forEach((corte) => {
+    const proveedor = corte.proveedor?.nombre || "Sin proveedor";
+
+    if (!rendimientoProveedores[proveedor]) {
+      rendimientoProveedores[proveedor] = {
+        proveedor,
+        totalMateriaRecibida: 0,
+        totalMateriaProcesada: 0,
+        rendimiento: 0,
+        lotes: [],
+      };
+    }
+
+    // Buscar TODAS las recepciones que coincidan con este proveedor y lote
+    const key = `${proveedor}|${corte.lote_proveedor}`;
+    const recepcionAgrupada = recepcionesPorProveedorYLote[key];
+
+    if (recepcionAgrupada) {
+      rendimientoProveedores[proveedor].totalMateriaRecibida +=
+        recepcionAgrupada.totalCantidad;
+    }
+
+    rendimientoProveedores[proveedor].totalMateriaProcesada += Number(
+      corte.totalMateria || 0,
+    );
+    rendimientoProveedores[proveedor].lotes.push({
+      lote: corte.lote_proveedor,
+      materiaRecibida: recepcionAgrupada?.totalCantidad || 0,
+      materiaProcesada: Number(corte.totalMateria || 0),
+      rendimiento: Number(corte.rendimiento || 0),
+    });
+  });
+
+  // Calcular rendimiento final por proveedor
+  Object.values(rendimientoProveedores).forEach((prov) => {
+    prov.rendimiento =
+      prov.totalMateriaRecibida > 0
+        ? (prov.totalMateriaProcesada / prov.totalMateriaRecibida) * 100
+        : 0;
+    prov.rendimiento = Number(prov.rendimiento.toFixed(1));
+    prov.totalMateriaRecibida = Number(prov.totalMateriaRecibida.toFixed(2));
+    prov.totalMateriaProcesada = Number(prov.totalMateriaProcesada.toFixed(2));
+  });
+
+  // 10. DATOS DE PROVEEDORES POR TIPO
+  const dataProveedor = detalleProv.map((op) => ({
+    tipo: op.tipo,
+    materia: op.materia,
+    proveedor: op.proveedor?.nombre || "",
+  }));
+
+  // 11. CAJAS POR TIPO
+  const cajas = detalleEmpaque.map((item) => ({
+    caja: item.tipo,
+    cantidad: item.totalCajas,
+    peso_total: Number(item.totalKg || 0).toFixed(2),
+  }));
+
+  // 12. ESTRUCTURA DE RENDIMIENTOS
+  const dataGeneral = [
+    {
+      fecha: "GENERAL",
+      orden: orden,
+      lote: produccion.lote_produccion,
+      RendPlatano: Number(rendimientoMateriaGeneral.toFixed(1)),
+      RendFritura: Number(rendimientoFrituraGeneral.toFixed(1)),
+      RendHFritura: Number(rendimientoHFrituraGeneral.toFixed(1)),
+      RendEmpaque: Number(rendimientoEmpaqueGeneral.toFixed(1)),
+      RendTotal: Number(rendimientoTotalGeneral.toFixed(1)),
+    },
+  ];
+
+  const rechazoArray = [
+    { name: "Recepcion", value: Number(rechazoRecepcion.toFixed(1)) },
+    { name: "Alistamiento", value: Number(rechazoAlistamiento.toFixed(1)) },
+    { name: "Corte", value: Number(rechazoCorte.toFixed(1)) },
+    { name: "Fritura", value: Number(rechazoFritura.toFixed(1)) },
+    { name: "Empaque", value: Number(rechazoEmpaque.toFixed(1)) },
+    { name: "Total", value: Number(rechazoTotal.toFixed(1)) },
+  ];
+
+  return {
+    data: dataGeneral,
+    rechazo: rechazoArray,
+    rechazoTotal: rechazoArray.find((item) => item.name === "Total"),
+    rendimientoFritura: [
+      {
+        fecha: "GENERAL",
+        totalFritura: Number(totalMateriaFritura.toFixed(2)),
+        totalCorte: Number(totalMateriaCorte.toFixed(2)),
+        rendimiento: Number(rendimientoFrituraGeneral.toFixed(1)),
+      },
+    ],
+    rendimientoHFritura: [
+      {
+        fecha: "GENERAL",
+        totalFritura: Number(totalMateriaFritura.toFixed(2)),
+        totalMateria: Number(totalMateriaPrima.toFixed(2)),
+        rendimiento: Number(rendimientoHFrituraGeneral.toFixed(1)),
+      },
+    ],
+    rendimientoEmpaque: [
+      {
+        fecha: "GENERAL",
+        totalFritura: Number(totalMateriaFritura.toFixed(2)),
+        totalPeso: Number(totalProductoTerminado.toFixed(2)),
+        totalCajas: totalCajas,
+        rendimiento: Number(rendimientoEmpaqueGeneral.toFixed(1)),
+      },
+    ],
+    rendimientoProveedores: Object.values(rendimientoProveedores),
+    cajas: cajas,
+    totalCanastillas: totalCanastillas,
+    dataProveedor: dataProveedor,
+    totales: {
+      materiaPrima: Number(totalMateriaPrima.toFixed(2)),
+      materiaCorte: Number(totalMateriaCorte.toFixed(2)),
+      materiaFritura: Number(totalMateriaFritura.toFixed(2)),
+      productoTerminado: Number(totalProductoTerminado.toFixed(2)),
+      cajasProducidas: totalCajas,
+      canastillasUtilizadas: totalCanastillas,
+    },
+    metadata: {
+      orden: orden,
+      lote: produccion.lote_produccion,
+      totalRecepciones: recepciones.length,
+      totalCortes: cortes.length,
+      totalFrituras: fritura.length,
+      totalEmpaques: detalleEmpaque.length,
+      proveedoresUnicos: Object.keys(rendimientoProveedores).length,
+      rangoFechas: {
+        desde: recepciones[recepciones.length - 1]?.fecha,
+        hasta: recepciones[0]?.fecha,
+      },
+    },
+  };
+};
+
+
+// Trae el rendimiento general del año actual con detalle por producción
+export const getPerformanceAnual = async () => {
+  const añoActual = new Date().getFullYear();
+  const fechaInicio = new Date(`${añoActual}-01-01`);
+  //const fechaInicio = new Date(`2025-01-01`);
+  const fechaFin = new Date(`${añoActual}-12-31`);
+
+  // Obtener todas las producciones del año
+  const producciones = await Produccion.findAll({
+    where: {
+      fecha_creacion: {
+        [Op.between]: [fechaInicio, fechaFin]
+      }
+    },
+    attributes: ['id', 'lote_produccion', 'fecha_creacion'],
+    raw: true
+  });
+
+  if (producciones.length === 0) {
+    throw new Error("No hay producciones registradas en el año actual.");
+  }
+
+  const ordenesIds = producciones.map(p => p.id);
+
+  // ============================================
+  // DATOS AGREGADOS (TOTALES DEL AÑO)
+  // ============================================
+  
+  // Obtener todas las recepciones del año
+  const recepciones = await RegistroRecepcionMateriaPrima.findAll({
+    attributes: ["id", "fecha", "cantidad", "cant_defectos", "lote", "orden"],
+    include: [{ model: Proveedor, as: "proveedor", attributes: ["nombre", "id"] }],
+    where: { 
+      orden: ordenesIds
+    },
+    raw: true,
+    nest: true,
+  });
+
+  if (recepciones.length === 0) {
+    throw new Error("No hay registros de recepciones en el año actual.");
+  }
+
+  // Obtener todos los cortes del año
+  const cortes = await RegistroAreaCorte.findAll({
+    attributes: [
+      "id",
+      "rendimiento_materia",
+      "fecha",
+      "rechazo_corte",
+      "total_materia",
+      "orden",
+    ],
+    where: { 
+      orden: ordenesIds
+    },
+    raw: true,
+  });
+
+  // Obtener todas las frituras del año
+  const fritura = await RegistroAreaFritura.findAll({
+    attributes: [
+      "id",
+      "materia_fritura",
+      "migas_fritura",
+      "rechazo_fritura",
+      "canastillas",
+      "fecha",
+      "orden",
+    ],
+    where: { 
+      orden: ordenesIds
+    },
+    raw: true,
+  });
+
+  // Obtener todos los alistamientos del año
+  const alistamiento = await ControlAlistamiento.findAll({
+    attributes: ["id", "rechazo", "fecha", "orden"],
+    where: { 
+      orden: ordenesIds
+    },
+    raw: true,
+  });
+
+  // Obtener IDs de cortes para buscar proveedores
+  const corteIds = cortes.map(c => c.id);
+
+  // Obtener proveedores de corte
+  const proveedoresCorte = await ProveedorCorte.findAll({
+    attributes: [
+      "id_corte",
+      "fecha_produccion",
+      "lote_proveedor",
+      "totalMateria",
+      "rechazo",
+      "rendimiento",
+      "id_proveedor",
+    ],
+    include: [
+      {
+        model: Proveedor,
+        as: "proveedor",
+        attributes: ["nombre", "id"],
+      },
+    ],
+    where: { id_corte: corteIds },
+    raw: true,
+    nest: true,
+  });
+
+  // Obtener detalle de proveedores para corte
+  const detalleProv = await DetalleAreaCorte.findAll({
+    attributes: ["id_corte", "tipo", "materia"],
+    include: [
+      {
+        model: Proveedor,
+        as: "proveedor",
+        attributes: ["nombre"],
+      },
+    ],
+    where: { id_corte: corteIds },
+    raw: true,
+    nest: true,
+  });
+
+  // Obtener todas las fechas de producción para empaques
+  const fechasProduccion = [
+    ...new Set([
+      ...cortes.map(c => c.fecha),
+      ...fritura.map(f => f.fecha),
+      ...alistamiento.map(a => a.fecha),
+      ...recepciones.map(r => r.fecha)
+    ].filter(Boolean))
+  ];
+
+  // Obtener todos los detalles de empaque del año
+  const detalleEmpaque = await DetalleEmpaque.findAll({
+    attributes: [
+      "tipo",
+      "fecha_produccion",
+      [fn("SUM", col("total_cajas")), "totalCajas"],
+      [fn("SUM", col("peso_kg")), "totalKg"],
+      [fn("SUM", col("total_rechazo")), "rechazo_empaque"],
+    ],
+    where: {
+      fecha_produccion: fechasProduccion,
+    },
+    group: ["tipo", "fecha_produccion"],
+    raw: true,
+  });
+
+  // ============================================
+  // CÁLCULOS AGREGADOS (TOTALES DEL AÑO)
+  // ============================================
+
+  // 1. Total Materia Prima Recibida
+  const totalMateriaPrima = recepciones.reduce(
+    (acc, d) => acc + Number(d.cantidad || 0),
+    0,
+  );
+
+  // 2. Total Materia Procesada en Corte
+  const totalMateriaCorte = cortes.reduce(
+    (acc, d) => acc + Number(d.total_materia || 0),
+    0,
+  );
+
+  // 3. Total Materia Procesada en Fritura
+  const totalMateriaFritura = fritura.reduce(
+    (acc, d) => acc + Number(d.materia_fritura || 0),
+    0,
+  );
+
+  // 4. Total Producto Terminado (Empaque)
+  const totalProductoTerminado = detalleEmpaque.reduce(
+    (acc, d) => acc + Number(d.totalKg || 0),
+    0,
+  );
+
+  // 5. Total Cajas Producidas
+  const totalCajas = detalleEmpaque.reduce(
+    (acc, d) => acc + Number(d.totalCajas || 0),
+    0,
+  );
+
+  // 6. Total Canastillas en Fritura
+  const totalCanastillas = fritura.reduce(
+    (acc, d) => acc + Number(d.canastillas || 0),
+    0,
+  );
+
+  // 7. CÁLCULO DE RENDIMIENTOS GENERALES ANUALES
+  const rendimientoMateriaAnual =
+    totalMateriaPrima > 0 ? (totalMateriaCorte / totalMateriaPrima) * 100 : 0;
+
+  const rendimientoFrituraAnual =
+    totalMateriaCorte > 0 ? (totalMateriaFritura / totalMateriaCorte) * 100 : 0;
+
+  const rendimientoHFrituraAnual =
+    totalMateriaPrima > 0 ? (totalMateriaFritura / totalMateriaPrima) * 100 : 0;
+
+  const rendimientoEmpaqueAnual =
+    totalMateriaFritura > 0
+      ? (totalProductoTerminado / totalMateriaFritura) * 100
+      : 0;
+
+  const rendimientoTotalAnual =
+    totalMateriaPrima > 0
+      ? (totalProductoTerminado / totalMateriaPrima) * 100
+      : 0;
+
+  // 8. CÁLCULO DE RECHAZOS GENERALES ANUALES
+  const rechazoRecepcion = recepciones.reduce(
+    (acc, d) => acc + Number(d.cant_defectos || 0),
+    0,
+  );
+
+  const rechazoAlistamiento = alistamiento.reduce(
+    (acc, a) => acc + Number(a.rechazo || 0),
+    0,
+  );
+
+  const rechazoCorte = cortes.reduce(
+    (acc, c) => acc + Number(c.rechazo_corte || 0),
+    0,
+  );
+
+  const rechazoFritura = fritura.reduce(
+    (acc, d) => acc + Number(d.rechazo_fritura || 0),
+    0,
+  );
+
+  const rechazoEmpaque = detalleEmpaque.reduce(
+    (acc, d) => acc + Number(d.rechazo_empaque || 0),
+    0,
+  );
+
+  const rechazoTotal =
+    rechazoRecepcion +
+    rechazoAlistamiento +
+    rechazoCorte +
+    rechazoFritura +
+    rechazoEmpaque;
+
+  // 9. CAJAS POR TIPO (AGREGADO)
+  const cajasAgrupadasPorTipo = {};
+  detalleEmpaque.forEach(item => {
+    if (!cajasAgrupadasPorTipo[item.tipo]) {
+      cajasAgrupadasPorTipo[item.tipo] = {
+        tipo: item.tipo,
+        cantidad: 0,
+        peso_total: 0
+      };
+    }
+    cajasAgrupadasPorTipo[item.tipo].cantidad += item.totalCajas;
+    cajasAgrupadasPorTipo[item.tipo].peso_total += Number(item.totalKg || 0);
+  });
+
+  const cajasPorTipo = Object.values(cajasAgrupadasPorTipo).map(item => ({
+    tipo: item.tipo,
+    cantidad: item.cantidad,
+    peso_total: item.peso_total.toFixed(2),
+    porcentaje: totalCajas > 0 
+      ? Number(((item.cantidad / totalCajas) * 100).toFixed(1)) 
+      : 0
+  }));
+
+  // ============================================
+  // RENDIMIENTO DE PROVEEDORES - CON RECHAZO INCLUIDO
+  // ============================================
+  
+  // Set para llevar registro de lotes ya procesados
+  const lotesProcesados = new Set();
+
+  // Primero, agrupar todas las recepciones por proveedor y lote
+  const recepcionesPorProveedorYLote = {};
+  recepciones.forEach((recep) => {
+    if (recep.proveedor?.nombre && recep.lote) {
+      const key = `${recep.proveedor.nombre}|${recep.lote}`;
+      if (!recepcionesPorProveedorYLote[key]) {
+        recepcionesPorProveedorYLote[key] = {
+          proveedor: recep.proveedor.nombre,
+          proveedorId: recep.proveedor.id,
+          lote: recep.lote,
+          totalCantidad: 0,
+        };
+      }
+      recepcionesPorProveedorYLote[key].totalCantidad += Number(
+        recep.cantidad || 0,
+      );
+    }
+  });
+
+  // Inicializar proveedores con sus recepciones (UNA SOLA VEZ por lote)
+  const rendimientoProveedoresGlobal = {};
+  
+  Object.values(recepcionesPorProveedorYLote).forEach((recepcion) => {
+    const proveedor = recepcion.proveedor;
+    
+    if (!rendimientoProveedoresGlobal[proveedor]) {
+      rendimientoProveedoresGlobal[proveedor] = {
+        proveedorId: recepcion.proveedorId,
+        proveedor,
+        totalMateriaRecibida: 0,
+        totalMateriaProcesada: 0,
+        totalRechazo: 0, // <-- NUEVO: campo de rechazo
+        rendimiento: 0,
+        lotes: [],
+      };
+    }
+    
+    // Sumar materia recibida UNA SOLA VEZ por lote
+    rendimientoProveedoresGlobal[proveedor].totalMateriaRecibida += recepcion.totalCantidad;
+  });
+
+  // Procesar cortes (la materia procesada y rechazo SÍ pueden sumarse múltiples veces por lote)
+  proveedoresCorte.forEach((corte) => {
+    const proveedor = corte.proveedor?.nombre || "Sin proveedor";
+    const lote = corte.lote_proveedor;
+    const key = `${proveedor}|${lote}`;
+    
+    // Identificador único para este lote
+    const loteId = `${proveedor}|${lote}`;
+    
+    // Buscar la recepción para este lote
+    const recepcionAgrupada = recepcionesPorProveedorYLote[key];
+    
+    if (rendimientoProveedoresGlobal[proveedor]) {
+      // Sumar materia procesada (SIEMPRE se suma, por cada corte)
+      rendimientoProveedoresGlobal[proveedor].totalMateriaProcesada += Number(
+        corte.totalMateria || 0,
+      );
+      
+      // SUMAR RECHAZO (por cada corte)
+      rendimientoProveedoresGlobal[proveedor].totalRechazo += Number(
+        corte.rechazo || 0,
+      );
+      
+      // Si es la primera vez que vemos este lote, agregamos información completa
+      if (!lotesProcesados.has(loteId)) {
+        lotesProcesados.add(loteId);
+        
+        // Agregar información del lote (con materia recibida)
+        rendimientoProveedoresGlobal[proveedor].lotes.push({
+          lote: lote,
+          fecha: corte.fecha_produccion,
+          materiaRecibida: recepcionAgrupada?.totalCantidad || 0,
+          materiaProcesada: Number(corte.totalMateria || 0),
+          rechazo: Number(corte.rechazo || 0), // <-- NUEVO: rechazo por lote
+          rendimiento: Number(corte.rendimiento || 0),
+        });
+      } else {
+        // Si el lote ya existe, agregamos otro corte (sin materia recibida)
+        rendimientoProveedoresGlobal[proveedor].lotes.push({
+          lote: lote,
+          fecha: corte.fecha_produccion,
+          materiaRecibida: 0, // No sumar recibida otra vez
+          materiaProcesada: Number(corte.totalMateria || 0),
+          rechazo: Number(corte.rechazo || 0), // <-- NUEVO: rechazo por lote
+          rendimiento: Number(corte.rendimiento || 0),
+        });
+      }
+    }
+  });
+
+  // Calcular rendimiento final por proveedor
+  Object.values(rendimientoProveedoresGlobal).forEach((prov) => {
+    prov.rendimiento =
+      prov.totalMateriaRecibida > 0
+        ? (prov.totalMateriaProcesada / prov.totalMateriaRecibida) * 100
+        : 0;
+    prov.rendimiento = Number(prov.rendimiento.toFixed(1));
+    prov.totalMateriaRecibida = Number(prov.totalMateriaRecibida.toFixed(2));
+    prov.totalMateriaProcesada = Number(prov.totalMateriaProcesada.toFixed(2));
+    prov.totalRechazo = Number(prov.totalRechazo.toFixed(1)); // <-- NUEVO: formatear rechazo
+    
+    // Ordenar lotes por fecha
+    prov.lotes.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
+  });
+
+  // ============================================
+  // DETALLE POR PRODUCCIÓN INDIVIDUAL
+  // ============================================
+  
+  const detalleProducciones = await Promise.all(
+    producciones.map(async (prod) => {
+      // Filtrar datos por esta orden específica
+      const recepcionesProd = recepciones.filter(r => r.orden === prod.id);
+      const cortesProd = cortes.filter(c => c.orden === prod.id);
+      const frituraProd = fritura.filter(f => f.orden === prod.id);
+      const alistamientoProd = alistamiento.filter(a => a.orden === prod.id);
+      
+      // Obtener IDs de cortes de esta producción
+      const corteIdsProd = cortesProd.map(c => c.id);
+      
+      // Obtener proveedores de corte para esta producción
+      const proveedoresCorteProd = proveedoresCorte.filter(pc => 
+        corteIdsProd.includes(pc.id_corte)
+      );
+
+      // Obtener fechas de recepción de esta producción
+      const fechasProd = [...new Set(recepcionesProd.map(r => r.fecha))];
+      
+      // Filtrar empaques por estas fechas
+      const empaquesProd = detalleEmpaque.filter(e => 
+        fechasProd.includes(e.fecha_produccion)
+      );
+
+      // Calcular totales de esta producción
+      const materiaPrimaProd = recepcionesProd.reduce(
+        (acc, d) => acc + Number(d.cantidad || 0), 0
+      );
+
+      const materiaCorteProd = cortesProd.reduce(
+        (acc, d) => acc + Number(d.total_materia || 0), 0
+      );
+
+      const materiaFrituraProd = frituraProd.reduce(
+        (acc, d) => acc + Number(d.materia_fritura || 0), 0
+      );
+
+      const productoTerminadoProd = empaquesProd.reduce(
+        (acc, d) => acc + Number(d.totalKg || 0), 0
+      );
+
+      const cajasProd = empaquesProd.reduce(
+        (acc, d) => acc + Number(d.totalCajas || 0), 0
+      );
+
+      // Calcular rechazos de esta producción
+      const rechazoRecepcionProd = recepcionesProd.reduce(
+        (acc, d) => acc + Number(d.cant_defectos || 0), 0
+      );
+
+      const rechazoAlistamientoProd = alistamientoProd.reduce(
+        (acc, a) => acc + Number(a.rechazo || 0), 0
+      );
+
+      const rechazoCorteProd = cortesProd.reduce(
+        (acc, c) => acc + Number(c.rechazo_corte || 0), 0
+      );
+
+      const rechazoFrituraProd = frituraProd.reduce(
+        (acc, d) => acc + Number(d.rechazo_fritura || 0), 0
+      );
+
+      const rechazoEmpaqueProd = empaquesProd.reduce(
+        (acc, d) => acc + Number(d.rechazo_empaque || 0), 0
+      );
+
+      const rechazoTotalProd = 
+        rechazoRecepcionProd +
+        rechazoAlistamientoProd +
+        rechazoCorteProd +
+        rechazoFrituraProd +
+        rechazoEmpaqueProd;
+
+      // Calcular rendimientos de esta producción
+      const rendimientoMateriaProd = materiaPrimaProd > 0 
+        ? (materiaCorteProd / materiaPrimaProd) * 100 : 0;
+      
+      const rendimientoFrituraProd = materiaCorteProd > 0 
+        ? (materiaFrituraProd / materiaCorteProd) * 100 : 0;
+      
+      const rendimientoHFrituraProd = materiaPrimaProd > 0 
+        ? (materiaFrituraProd / materiaPrimaProd) * 100 : 0;
+      
+      const rendimientoEmpaqueProd = materiaFrituraProd > 0 
+        ? (productoTerminadoProd / materiaFrituraProd) * 100 : 0;
+      
+      const rendimientoTotalProd = materiaPrimaProd > 0 
+        ? (productoTerminadoProd / materiaPrimaProd) * 100 : 0;
+
+      // Calcular rendimiento de proveedores para esta producción
+      const rendimientoProveedoresProd = {};
+      const lotesProdProcesados = new Set();
+      
+      // Agrupar recepciones de esta producción por proveedor y lote
+      const recepcionesProdPorLote = {};
+      recepcionesProd.forEach((recep) => {
+        if (recep.proveedor?.nombre && recep.lote) {
+          const key = `${recep.proveedor.nombre}|${recep.lote}`;
+          if (!recepcionesProdPorLote[key]) {
+            recepcionesProdPorLote[key] = {
+              proveedor: recep.proveedor.nombre,
+              proveedorId: recep.proveedor.id,
+              lote: recep.lote,
+              totalCantidad: 0,
+            };
+          }
+          recepcionesProdPorLote[key].totalCantidad += Number(recep.cantidad || 0);
+        }
+      });
+
+      // Inicializar proveedores con sus recepciones (UNA VEZ por lote)
+      Object.values(recepcionesProdPorLote).forEach((recepcion) => {
+        const proveedor = recepcion.proveedor;
+        
+        if (!rendimientoProveedoresProd[proveedor]) {
+          rendimientoProveedoresProd[proveedor] = {
+            proveedorId: recepcion.proveedorId,
+            proveedor,
+            totalMateriaRecibida: 0,
+            totalMateriaProcesada: 0,
+            totalRechazo: 0, // <-- NUEVO: rechazo por proveedor en producción
+            rendimiento: 0,
+          };
+        }
+        
+        rendimientoProveedoresProd[proveedor].totalMateriaRecibida += recepcion.totalCantidad;
+      });
+
+      // Procesar cortes de esta producción
+      proveedoresCorteProd.forEach((corte) => {
+        const proveedor = corte.proveedor?.nombre || "Sin proveedor";
+        
+        if (rendimientoProveedoresProd[proveedor]) {
+          // Sumar materia procesada (por cada corte)
+          rendimientoProveedoresProd[proveedor].totalMateriaProcesada += Number(
+            corte.totalMateria || 0,
+          );
+          
+          // SUMAR RECHAZO (por cada corte)
+          rendimientoProveedoresProd[proveedor].totalRechazo += Number(
+            corte.rechazo || 0,
+          );
+        }
+      });
+
+      // Calcular rendimiento final por proveedor para esta producción
+      Object.values(rendimientoProveedoresProd).forEach((prov) => {
+        prov.rendimiento =
+          prov.totalMateriaRecibida > 0
+            ? (prov.totalMateriaProcesada / prov.totalMateriaRecibida) * 100
+            : 0;
+        prov.rendimiento = Number(prov.rendimiento.toFixed(1));
+        prov.totalMateriaRecibida = Number(prov.totalMateriaRecibida.toFixed(2));
+        prov.totalMateriaProcesada = Number(prov.totalMateriaProcesada.toFixed(2));
+        prov.totalRechazo = Number(prov.totalRechazo.toFixed(1)); // <-- NUEVO: formatear rechazo
+      });
+
+      return {
+        orden: prod.id,
+        lote: prod.lote_produccion,
+        fecha: prod.fecha_creacion,
+        rendimiento: {
+          materia: Number(rendimientoMateriaProd.toFixed(1)),
+          fritura: Number(rendimientoFrituraProd.toFixed(1)),
+          hfritura: Number(rendimientoHFrituraProd.toFixed(1)),
+          empaque: Number(rendimientoEmpaqueProd.toFixed(1)),
+          total: Number(rendimientoTotalProd.toFixed(1))
+        },
+        rechazo: {
+          recepcion: Number(rechazoRecepcionProd.toFixed(1)),
+          alistamiento: Number(rechazoAlistamientoProd.toFixed(1)),
+          corte: Number(rechazoCorteProd.toFixed(1)),
+          fritura: Number(rechazoFrituraProd.toFixed(1)),
+          empaque: Number(rechazoEmpaqueProd.toFixed(1)),
+          total: Number(rechazoTotalProd.toFixed(1))
+        },
+        proveedores: Object.values(rendimientoProveedoresProd), // <-- Ahora incluye rechazo
+        totales: {
+          materiaPrima: Number(materiaPrimaProd.toFixed(2)),
+          materiaCorte: Number(materiaCorteProd.toFixed(2)),
+          materiaFritura: Number(materiaFrituraProd.toFixed(2)),
+          productoTerminado: Number(productoTerminadoProd.toFixed(2)),
+          cajas: cajasProd,
+          canastillas: frituraProd.reduce((acc, f) => acc + Number(f.canastillas || 0), 0)
+        },
+        registros: {
+          recepciones: recepcionesProd.length,
+          cortes: cortesProd.length,
+          frituras: frituraProd.length,
+          alistamientos: alistamientoProd.length,
+          empaques: empaquesProd.length
+        }
+      };
+    })
+  );
+
+  // Ordenar por fecha (más reciente primero)
+  detalleProducciones.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
+
+  // 10. ESTRUCTURA DE RENDIMIENTOS AGREGADOS
+  const rendimiento = [
+    {
+      periodo: `${añoActual}`,
+      totalProducciones: producciones.length,
+      rendimientoMateria: Number(rendimientoMateriaAnual.toFixed(1)),
+      rendimientoFritura: Number(rendimientoFrituraAnual.toFixed(1)),
+      rendimientoHFritura: Number(rendimientoHFrituraAnual.toFixed(1)),
+      rendimientoEmpaque: Number(rendimientoEmpaqueAnual.toFixed(1)),
+      rendimientoTotal: Number(rendimientoTotalAnual.toFixed(1)),
+    },
+  ];
+
+  // 11. ESTRUCTURA DE RECHAZOS AGREGADOS
+  const rechazoArray = [
+    { area: "Recepcion", valor: Number(rechazoRecepcion.toFixed(1)) },
+    { area: "Alistamiento", valor: Number(rechazoAlistamiento.toFixed(1)) },
+    { area: "Corte", valor: Number(rechazoCorte.toFixed(1)) },
+    { area: "Fritura", valor: Number(rechazoFritura.toFixed(1)) },
+    { area: "Empaque", valor: Number(rechazoEmpaque.toFixed(1)) },
+    { area: "Total", valor: Number(rechazoTotal.toFixed(1)) },
+  ];
+
+  // 12. DATOS DE PROVEEDORES POR TIPO
+  const dataProveedor = detalleProv.map((op) => ({
+    tipo: op.tipo,
+    materia: op.materia,
+    proveedor: op.proveedor?.nombre || "",
+  }));
+
+  // 13. RESUMEN DE TOTALES
+  const totales = {
+    año: añoActual,
+    materiaPrima: Number(totalMateriaPrima.toFixed(2)),
+    materiaCorte: Number(totalMateriaCorte.toFixed(2)),
+    materiaFritura: Number(totalMateriaFritura.toFixed(2)),
+    productoTerminado: Number(totalProductoTerminado.toFixed(2)),
+    cajasProducidas: totalCajas,
+    canastillasUtilizadas: totalCanastillas,
+    produccionesRealizadas: producciones.length,
+  };
+
+  // 14. ESTADÍSTICAS MENSUALES
+  const produccionesPorMes = {};
+  recepciones.forEach(rec => {
+    if (rec.fecha) {
+      const mes = new Date(rec.fecha).getMonth() + 1;
+      if (!produccionesPorMes[mes]) {
+        produccionesPorMes[mes] = {
+          mes,
+          materiaPrima: 0,
+          productoTerminado: 0,
+          rechazoTotal: 0,
+          producciones: new Set()
+        };
+      }
+      produccionesPorMes[mes].materiaPrima += Number(rec.cantidad || 0);
+      produccionesPorMes[mes].producciones.add(rec.orden);
+    }
+  });
+
+  detalleEmpaque.forEach(emp => {
+    if (emp.fecha_produccion) {
+      const mes = new Date(emp.fecha_produccion).getMonth() + 1;
+      if (produccionesPorMes[mes]) {
+        produccionesPorMes[mes].productoTerminado += Number(emp.totalKg || 0);
+        produccionesPorMes[mes].rechazoTotal += Number(emp.rechazo_empaque || 0);
+      }
+    }
+  });
+
+  cortes.forEach(c => {
+    if (c.fecha) {
+      const mes = new Date(c.fecha).getMonth() + 1;
+      if (produccionesPorMes[mes]) {
+        produccionesPorMes[mes].rechazoTotal += Number(c.rechazo_corte || 0);
+      }
+    }
+  });
+
+  fritura.forEach(f => {
+    if (f.fecha) {
+      const mes = new Date(f.fecha).getMonth() + 1;
+      if (produccionesPorMes[mes]) {
+        produccionesPorMes[mes].rechazoTotal += Number(f.rechazo_fritura || 0);
+      }
+    }
+  });
+
+  alistamiento.forEach(a => {
+    if (a.fecha) {
+      const mes = new Date(a.fecha).getMonth() + 1;
+      if (produccionesPorMes[mes]) {
+        produccionesPorMes[mes].rechazoTotal += Number(a.rechazo || 0);
+      }
+    }
+  });
+
+  const estadisticasMensuales = Object.values(produccionesPorMes).map(item => ({
+    mes: item.mes,
+    nombreMes: new Date(añoActual, item.mes - 1, 1).toLocaleString('default', { month: 'long' }),
+    materiaPrima: Number(item.materiaPrima.toFixed(2)),
+    productoTerminado: Number(item.productoTerminado.toFixed(2)),
+    rechazoTotal: Number(item.rechazoTotal.toFixed(1)),
+    produccionesEnMes: item.producciones.size,
+    rendimiento: item.materiaPrima > 0 
+      ? Number(((item.productoTerminado / item.materiaPrima) * 100).toFixed(1))
+      : 0
+  }));
+
+  // Verificación final: La suma de materia recibida por proveedores debe ser IGUAL al total general
+  const sumaProveedores = Object.values(rendimientoProveedoresGlobal).reduce(
+    (acc, prov) => acc + prov.totalMateriaRecibida, 0
+  );
+
+  const sumaRechazoProveedores = Object.values(rendimientoProveedoresGlobal).reduce(
+    (acc, prov) => acc + prov.totalRechazo, 0
+  );
+
+  console.log(`📊 Verificación de Materia Prima:`);
+  console.log(`   Total General: ${totalMateriaPrima.toFixed(2)}`);
+  console.log(`   Suma por Proveedores: ${sumaProveedores.toFixed(2)}`);
+  console.log(`   Diferencia: ${Math.abs(totalMateriaPrima - sumaProveedores).toFixed(2)}`);
+  console.log(`📊 Verificación de Rechazo:`);
+  console.log(`   Total General: ${rechazoCorte.toFixed(2)}`);
+  console.log(`   Suma por Proveedores: ${sumaRechazoProveedores.toFixed(2)}`);
+
+  return {
+    rendimiento,
+    detalleProducciones,
+    rendimientoProveedores: Object.values(rendimientoProveedoresGlobal), // <-- Ahora incluye totalRechazo
+    rechazo: rechazoArray,
+    rechazoTotal: rechazoArray.find((item) => item.area === "Total"),
+    cajas: cajasPorTipo,
+    totales,
+    dataProveedor,
+    estadisticasMensuales,
+    metadata: {
+      año: añoActual,
+      totalProducciones: producciones.length,
+      totalRecepciones: recepciones.length,
+      totalCortes: cortes.length,
+      totalFrituras: fritura.length,
+      totalEmpaques: detalleEmpaque.length,
+      totalProveedores: Object.keys(rendimientoProveedoresGlobal).length,
+      rangoFechas: {
+        desde: recepciones[recepciones.length - 1]?.fecha,
+        hasta: recepciones[0]?.fecha,
+      },
+    },
+  };
+};
+
 // Trae toda la información relacionada al contenedor o Orden de Producción.
 export const getContainerInfo = async (orden) => {
   // Validar orden de producción.
@@ -1568,10 +2671,9 @@ export const getContainerInfo = async (orden) => {
     Fritura: infoFritura(fritura) || {},
     Empaque: infoEmpaque(empaques) || {},
     InfoGlobal: {
-      Rechazo:
-        infoRechazo(recepciones, alistamiento, cortes, fritura, empaques) || 0,
-      Bidones: bidones || 0,
-      Gas: gas ?? 0,
+      Rechazo:infoRechazo(recepciones, alistamiento, cortes, fritura, empaques) || 0,
+      Bidones: bidones,
+      Gas: Number(gas ?? 0).toFixed(2),
       Proveedores: proveedores.length || 0,
     },
   };

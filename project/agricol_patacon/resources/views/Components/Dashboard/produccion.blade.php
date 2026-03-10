@@ -116,13 +116,11 @@
                                                             <th class="AG text-center">PROCESO</th>
                                                             <th class=" text-center">ACCIONES</th>
                                                         </tr>
-
                                                     </thead>
                                                     <tbody>
                                                         <tr>
                                                             <td colspan="5">No hay Información </td>
                                                         </tr>
-
                                                     </tbody>
                                                 </table>
                                             </div>
@@ -594,17 +592,27 @@
                     <h3><i class="fa-solid fa-chart-area"></i> Rendimiento de Producción</h3>
                 </div>
             </div>
-            <div class="row justify-content-end align-items-center g-2 mb-3 mt-4">
-                <div class="col-3">
-                    <label for="inputSearhR" class="form-label">Fecha de Producción</label>
+            <!-- MODIFICACIÓN: Botón de rendimiento general al principio y opuesto a la fecha -->
+            <div class="row justify-content-between align-items-end g-2 mb-3 mt-4">
+                <!-- Botón de Rendimiento General a la izquierda -->
+                <div class="col-auto">
+                    <button class="btn btn-success px-4 py-2 shadow-sm" id="btnRendimientoGeneral"
+                        style="background-color: #6c780d; border-color: #6c780d;">
+                        <i class="fa-solid fa-chart-line me-2"></i> Ver Rendimiento General
+                    </button>
+                </div>
 
-                    <div class="input-group mt-2">
-
-                        <input type="date" class="form-control form-control-sm shadow-sm"
-                            placeholder="Buscar Contenedor..." id="inputSearhR" aria-label="Username"
-                            aria-describedby="basic-addon1" autocomplete="off">
-                        <span class="input-group-text" id="basic-addon1"><i
-                                class="fa-solid fa-magnifying-glass"></i></span>
+                <!-- Selector de Fecha a la derecha -->
+                <div class="col-auto">
+                    <div class="d-flex align-items-center gap-2">
+                        <label for="inputSearhR" class="form-label fw-semibold mb-0 text-secondary">Fecha:</label>
+                        <div class="input-group" style="width: 250px;">
+                            <input type="date" class="form-control form-control-sm shadow-sm" id="inputSearhR"
+                                autocomplete="off">
+                            <span class="input-group-text bg-white" id="basic-addon1">
+                                <i class="fa-solid fa-calendar-day text-success"></i>
+                            </span>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -999,11 +1007,11 @@
 
 <!-- Modal para registrar cajas sobrantes -->
 <div class="modal fade" id="modalSobrantes" tabindex="-1" aria-labelledby="modalSobrantesLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
         <div class="modal-content">
             <div class="modal-header" style="background-color: #ffc107;">
                 <h5 class="modal-title fw-bold" id="modalSobrantesLabel">
-                    <i class="fa-solid fa-boxes"></i> Registrar Cajas Sobrantes
+                    <i class="fa-solid fa-boxes"></i> Registrar Cajas Sobrantes por Lote
                 </h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
@@ -1016,40 +1024,85 @@
                         </div>
                     </div>
 
-                    <h6 class="fw-bold mb-3">Cantidades Sobrantes por Tipo:</h6>
+                    <!-- Buscador de lotes -->
+                    <div class="row mb-3">
+                        <div class="col-12">
+                            <label for="buscadorLotes" class="form-label fw-semibold">
+                                <i class="fa-solid fa-search"></i> Buscar y Agregar Lote:
+                            </label>
+                            <div class="input-group">
+                                <select class="form-select" id="buscadorLotes">
+                                    <option value="">Seleccione un lote para agregar...</option>
+                                    <!-- Los lotes se cargarán dinámicamente -->
+                                </select>
+                                <button class="btn btn-outline-primary" type="button" id="btnAgregarLote">
+                                    <i class="fa-solid fa-plus"></i> Agregar
+                                </button>
+                            </div>
+                            <div class="form-text">Busque un lote y asígnele las cantidades sobrantes</div>
+                        </div>
+                    </div>
 
-                    <div class="row g-3">
-                        <div class="col-md-4">
-                            <label for="sobranteA" class="form-label">Tipo A:</label>
-                            <input type="number" class="form-control" id="sobranteA" min="0" value="0">
+                    <!-- Tabla de lotes seleccionados -->
+                    <div class="table-responsive mt-4">
+                        <h6 class="fw-bold mb-3">
+                            <i class="fa-solid fa-list"></i> Lotes Seleccionados con Sobrantes:
+                        </h6>
+                        <table class="table table-bordered table-hover" id="tablaLotesSeleccionados">
+                            <thead class="table-light">
+                                <tr>
+                                    <th class="text-center">Lote</th>
+                                    <th class="text-center">A</th>
+                                    <th class="text-center">B</th>
+                                    <th class="text-center">C</th>
+                                    <th class="text-center">AF</th>
+                                    <th class="text-center">BH</th>
+                                    <th class="text-center">XL</th>
+                                    <th class="text-center">CIL</th>
+                                    <th class="text-center">PINTON</th>
+                                    <th class="text-center">Acción</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tbodyLotesSeleccionados">
+                                <!-- Aquí se agregarán las filas dinámicamente -->
+                                <tr id="filaVacia">
+                                    <td colspan="10" class="text-center py-4 text-muted">
+                                        <i class="fa-solid fa-box-open fa-2x mb-2"></i><br>
+                                        No hay lotes seleccionados. Agregue lotes usando el buscador.
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Totales de sobrantes -->
+                    <div class="row mt-4 p-3 bg-light rounded">
+                        <h6 class="fw-bold mb-3">
+                            <i class="fa-solid fa-calculator"></i> Totales de Sobrantes:
+                        </h6>
+                        <div class="col-md-3">
+                            <span class="fw-semibold">Total A:</span> <span id="totalSobranteA">0</span>
                         </div>
-                        <div class="col-md-4">
-                            <label for="sobranteB" class="form-label">Tipo B:</label>
-                            <input type="number" class="form-control" id="sobranteB" min="0" value="0">
+                        <div class="col-md-3">
+                            <span class="fw-semibold">Total B:</span> <span id="totalSobranteB">0</span>
                         </div>
-                        <div class="col-md-4">
-                            <label for="sobranteC" class="form-label">Tipo C:</label>
-                            <input type="number" class="form-control" id="sobranteC" min="0" value="0">
+                        <div class="col-md-3">
+                            <span class="fw-semibold">Total C:</span> <span id="totalSobranteC">0</span>
                         </div>
-                        <div class="col-md-4">
-                            <label for="sobranteAF" class="form-label">Tipo AF:</label>
-                            <input type="number" class="form-control" id="sobranteAF" min="0" value="0">
+                        <div class="col-md-3">
+                            <span class="fw-semibold">Total AF:</span> <span id="totalSobranteAF">0</span>
                         </div>
-                        <div class="col-md-4">
-                            <label for="sobranteBH" class="form-label">Tipo BH:</label>
-                            <input type="number" class="form-control" id="sobranteBH" min="0" value="0">
+                        <div class="col-md-3">
+                            <span class="fw-semibold">Total BH:</span> <span id="totalSobranteBH">0</span>
                         </div>
-                        <div class="col-md-4">
-                            <label for="sobranteXL" class="form-label">Tipo XL:</label>
-                            <input type="number" class="form-control" id="sobranteXL" min="0" value="0">
+                        <div class="col-md-3">
+                            <span class="fw-semibold">Total XL:</span> <span id="totalSobranteXL">0</span>
                         </div>
-                        <div class="col-md-4">
-                            <label for="sobranteCIL" class="form-label">Tipo Cilindro:</label>
-                            <input type="number" class="form-control" id="sobranteCIL" min="0" value="0">
+                        <div class="col-md-3">
+                            <span class="fw-semibold">Total CIL:</span> <span id="totalSobranteCIL">0</span>
                         </div>
-                        <div class="col-md-4">
-                            <label for="sobrantePINTON" class="form-label">Tipo Pintón:</label>
-                            <input type="number" class="form-control" id="sobrantePINTON" min="0" value="0">
+                        <div class="col-md-3">
+                            <span class="fw-semibold">Total PINTON:</span> <span id="totalSobrantePINTON">0</span>
                         </div>
                     </div>
 
@@ -1057,8 +1110,8 @@
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                <button type="button" class="btn btn-warning" id="BtnEnviar"">
-                    <i class=" fa-solid fa-save"></i> Guardar Sobrantes
+                <button type="button" class="btn btn-warning" id="BtnEnviar">
+                    <i class="fa-solid fa-save"></i> Guardar Sobrantes
                 </button>
             </div>
         </div>
@@ -1141,6 +1194,12 @@
                         <label for="lote_produccion" class="form-label">Lote Produccion.</label>
                         <input type="text" class="form-control form-control-md  rounded-3shadow-sm"
                             placeholder="Lote Contenedor" name="lote_produccion" id="lote_produccion" disabled>
+                    </div>
+
+                    <div class="mb-3 col-md-6">
+                        <label for="numero_orden" class="form-label">Numero Orden.</label>
+                        <input type="text" class="form-control form-control-md  rounded-3shadow-sm"
+                            placeholder="Numero Contenedor" name="numero_orden" id="numero_orden">
                     </div>
 
                     <div class="mb-3 col-md-6">
@@ -1285,6 +1344,12 @@
                         <label for="lote_produccion_info" class="form-label">Lote Produccion.</label>
                         <input type="text" class="form-control form-control-sm rounded shadow-sm"
                             name="lote_produccion_info" id="lote_produccion_info" readonly>
+                    </div>
+
+                    <div class="mb-3 col-md-6">
+                        <label for="numero_orden_info" class="form-label">Numero Orden.</label>
+                        <input type="text" class="form-control form-control-sm rounded shadow-sm"
+                            name="numero_orden_info" id="numero_orden_info" readonly>
                     </div>
 
                     <div class="mb-3 col-md-6">

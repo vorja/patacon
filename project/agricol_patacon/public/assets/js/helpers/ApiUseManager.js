@@ -2,7 +2,7 @@ export const Url = "http://localhost:3105";
 
 let fecha = new Date();
 
-export const fechaHoy = "2026-02-25"
+export const fechaHoy = "2026-03-03"
 /* `${fecha.getFullYear()}-${
     fecha.getMonth() + 1
 }-${fecha.getDate()}`;   */
