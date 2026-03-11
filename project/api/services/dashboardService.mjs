@@ -8,6 +8,13 @@ import Proveedor from "../models/proveedores.mjs";
 import ControlAlistamiento from "../models/controlAlistamiento.mjs";
 import DetalleEmpaque from "../models/detalleEmpaque.mjs";
 import RegistroAreaCorte from "../models/registroAreaCorte.mjs";
+import AlistamientoHasProveedor from "../models/alistamientosHasProveedor.mjs";
+import VariablesProveedor from "../models/variablesProveedor.mjs";
+import DetalleProveedor from "../models/detalleProveedor.mjs";
+import Verificaciones from "../models/verificaciones.mjs";
+import VerificarPesoEmpaque from "../models/verificarPesoEmpaque.mjs";
+import VerificarPesoPaquete from "../models/verificarPesoPaquete.mjs";
+import Responsable from "../models/responsable.mjs";
 
 // ============================================
 // VARIABLE GLOBAL - AÑO ACTUAL
@@ -339,6 +346,168 @@ export const obtenerDashboardAnual = async () => {
     };
   } catch (error) {
     console.error("Error al obtener datos del dashboard:", error);
+    throw error;
+  }
+};
+
+// ============================================
+// 7. INDICADORES DE CALIDAD PARA EXCEL Y GRÁFICAS
+// ============================================
+
+export const obtenerRecepcionAlistamiento = async () => {
+  const registros = await AlistamientoHasProveedor.findAll({
+    attributes: [
+      "lote_proveedor",
+      [fn("SUM", col("materia")), "materia_total"],
+      [fn("SUM", col("rechazo")), "rechazo_total"],
+      [fn("SUM", col("maduro")), "maduro_total"],
+    ],
+    group: ["lote_proveedor"],
+    order: [["lote_proveedor", "ASC"]],
+    raw: true,
+  });
+
+  return registros.map((r) => {
+    const materia = Number(r.materia_total ?? 0);
+    const rechazo = Number(r.rechazo_total ?? 0);
+    const maduro = Number(r.maduro_total ?? 0);
+    const bruto = materia + rechazo + maduro;
+    const rendimiento =
+      bruto > 0 ? Number(((materia / bruto) * 100).toFixed(2)) : 0;
+    const perdida =
+      bruto > 0 ? Number((((rechazo + maduro) / bruto) * 100).toFixed(2)) : 0;
+
+    return {
+      lote_proveedor: r.lote_proveedor,
+      materia,
+      rechazo,
+      maduro,
+      bruto,
+      rendimiento,
+      perdida,
+    };
+  });
+};
+
+export const obtenerControlFrituraCalidad = async () => {
+  const [detalles, variables] = await Promise.all([
+    DetalleProveedor.findAll({ raw: true }),
+    VariablesProveedor.findAll({ raw: true }),
+  ]);
+
+  const variablesPorProceso = variables.reduce((acc, item) => {
+    const id = item.id_proceso;
+    if (!acc[id]) {
+      acc[id] = {
+        id_proceso: id,
+        lote_produccion: item.lote_produccion,
+        lote_proveedor: item.lote_proveedor,
+        tipo: item.tipo,
+        canastas_variables: 0,
+        cantidad_kg: 0,
+      };
+    }
+    acc[id].canastas_variables += Number(item.canastas ?? 0);
+    acc[id].cantidad_kg += Number(item.cantidad_kg ?? 0);
+    return acc;
+  }, {});
+
+  const resultado = detalles.map((detalle) => {
+    const resumen = variablesPorProceso[detalle.id] ?? {};
+
+    return {
+      id_proceso: detalle.id,
+      lote_produccion: resumen.lote_produccion ?? null,
+      lote_proveedor: resumen.lote_proveedor ?? null,
+      tipo: resumen.tipo ?? null,
+      temperatura_fritura: Number(detalle.temperatura_fritura ?? 0),
+      tiempo_fritura: Number(detalle.tiempo_fritura ?? 0),
+      rechazo: Number(detalle.rechazo ?? 0),
+      migas: Number(detalle.migas ?? 0),
+      bajadas: Number(detalle.bajadas ?? 0),
+      canastas: Number(detalle.canastas ?? 0),
+      materia_kg: Number(detalle.materia_kg ?? 0),
+      canastas_variables: Number(resumen.canastas_variables ?? 0),
+      cantidad_kg: Number(resumen.cantidad_kg ?? 0),
+    };
+  });
+
+  return resultado;
+};
+
+export const obtenerVerificacionEmpaqueCalidad = async () => {
+  const [verificaciones, empaques, paquetes, responsables] = await Promise.all([
+    Verificaciones.findAll({ raw: true }),
+    VerificarPesoEmpaque.findAll({ raw: true }),
+    VerificarPesoPaquete.findAll({ raw: true }),
+    Responsable.findAll({ raw: true }),
+  ]);
+
+  const responsablesPorId = responsables.reduce((acc, r) => {
+    acc[r.id] = r.nombre;
+    return acc;
+  }, {});
+
+  const verificacionBase = verificaciones.reduce((acc, v) => {
+    acc[v.id] = {
+      id_verificacion: v.id,
+      fecha_verificacion: v.fecha_verificacion,
+      responsable: responsablesPorId[v.id_responsable] ?? null,
+    };
+    return acc;
+  }, {});
+
+  const filas = [];
+
+  empaques.forEach((e) => {
+    const base = verificacionBase[e.id_verificacion] ?? {};
+    filas.push({
+      id_verificacion: e.id_verificacion,
+      fecha_verificacion: base.fecha_verificacion ?? null,
+      responsable: base.responsable ?? null,
+      lote_empaque: e.lote_empaque,
+      tipo_caja: e.tipo_caja,
+      peso_caja: Number(e.peso_caja ?? 0),
+      lote_produccion: null,
+      tipo_paquete: null,
+      peso_paquete: null,
+    });
+  });
+
+  paquetes.forEach((p) => {
+    const base = verificacionBase[p.id_verificacion] ?? {};
+    filas.push({
+      id_verificacion: p.id_verificacion,
+      fecha_verificacion: base.fecha_verificacion ?? null,
+      responsable: base.responsable ?? null,
+      lote_empaque: null,
+      tipo_caja: null,
+      peso_caja: null,
+      lote_produccion: p.lote_produccion,
+      tipo_paquete: p.tipo_paquete,
+      peso_paquete: Number(p.peso_paquete ?? 0),
+    });
+  });
+
+  return filas;
+};
+
+export const obtenerIndicadoresCalidad = async () => {
+  try {
+    const [recepcionAlistamiento, controlFritura, verificacionEmpaque] =
+      await Promise.all([
+        obtenerRecepcionAlistamiento(),
+        obtenerControlFrituraCalidad(),
+        obtenerVerificacionEmpaqueCalidad(),
+      ]);
+
+    return {
+      recepcionAlistamiento,
+      controlFritura,
+      verificacionEmpaque,
+    };
+  } catch (error) {
+    console.error("Error al obtener indicadores de calidad:", error);
     throw error;
   }
 };

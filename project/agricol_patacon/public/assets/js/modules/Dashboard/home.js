@@ -10,6 +10,7 @@ var today = new Date();
 var year = today.getFullYear();
 
 const API_PRODUCCION = new ApiService(Url + "/data/produccion");
+const API_DASHBOARD = new ApiService(Url + "/data/dashboard");
 
 const token = document
     .querySelector('meta[name="jwt"]')
@@ -21,8 +22,11 @@ document.getElementById("ano1").textContent = year;
 document.getElementById("ano2").textContent = year;
 document.getElementById("ano3").textContent = year;
 
-// Obtener el botón por su ID
+// Botones de exportación
 const btnPdf = document.getElementById("btnGenerarPDF");
+const btnExcel = document.getElementById("btnGenerarExcel");
+
+let indicadoresCalidadData = null;
 
 // Función asíncrona para generar PDF
 const generarPDF = async () => {
@@ -79,12 +83,82 @@ if (btnPdf) {
     console.error("No se encontró el botón con ID 'btnGenerarPDF'");
 }
 
+// Función asíncrona para generar Excel de indicadores de calidad
+const generarExcel = async () => {
+    try {
+        if (!btnExcel) return;
+
+        btnExcel.innerHTML =
+            '<i class="fas fa-spinner fa-spin me-2"></i> Generando...';
+        btnExcel.disabled = true;
+
+        if (!indicadoresCalidadData) {
+            const res = await API_DASHBOARD.get(
+                `/indicadores-calidad/${year}`,
+                {
+                    headers: {
+                        Authorization: "Bearer " + token,
+                    },
+                },
+            );
+            indicadoresCalidadData = res.data;
+        }
+
+        const response = await fetch("/reporte-indicadores-calidad-excel", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "X-CSRF-TOKEN": document
+                    .querySelector('meta[name="csrf-token"]')
+                    .getAttribute("content"),
+            },
+            body: JSON.stringify(indicadoresCalidadData),
+        });
+
+        if (!response.ok) {
+            const err = await response.text();
+            console.error("Error backend Excel:", err);
+            return;
+        }
+
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "indicadores_calidad.xlsx";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(url);
+    } catch (error) {
+        console.error("Error generando Excel indicadores de calidad:", error);
+    } finally {
+        if (btnExcel) {
+            btnExcel.innerHTML =
+                '<i class="fas fa-file-excel me-2"></i> Generar Excel';
+            btnExcel.disabled = false;
+        }
+    }
+};
+
+if (btnExcel) {
+    btnExcel.addEventListener("click", generarExcel);
+} else {
+    console.error("No se encontró el botón con ID 'btnGenerarExcel'");
+}
+
 const info_globlal = {
     cajasData: 0,
     contenedoresData: 0,
     hierarchicalData: 0,
     proveedorData: 0,
     materiaConenedores: 0,
+};
+
+const calidad_global = {
+    recepcionAlistamiento: [],
+    controlFritura: [],
+    verificacionEmpaque: [],
 };
 
 let selectedCategory = null;
@@ -189,6 +263,327 @@ function drawChart(data) {
         .attr("transform", "rotate(-90)")
         .attr("text-anchor", "middle")
         .text("Gasto de Materia Prima");
+}
+
+// ========================= //
+//   RECEPCIÓN / ALISTAMIENTO
+// ========================= //
+
+function drawGraficaRecepcionAlistamiento() {
+    const data = calidad_global.recepcionAlistamiento;
+    if (!data || data.length === 0) return;
+
+    const container = document.querySelector(".container-calidad-recepcion");
+    const containerWidth = container.offsetWidth;
+
+    const margin = { top: 40, right: 40, bottom: 60, left: 70 };
+    const width = Math.max(600, containerWidth - margin.left - margin.right);
+    const height = Math.max(400, data.length * 35);
+
+    const svg = d3
+        .select("#graficaRecepcionAlistamiento")
+        .attr("width", width + margin.left + margin.right)
+        .attr("height", height + margin.top + margin.bottom)
+        .append("g")
+        .attr("transform", `translate(${margin.left},${margin.top})`);
+
+    const x = d3
+        .scaleBand()
+        .domain(data.map((d) => d.lote_proveedor))
+        .range([0, width])
+        .padding(0.2);
+
+    const y = d3
+        .scaleLinear()
+        .domain([0, d3.max(data, (d) => d.bruto)])
+        .nice()
+        .range([height, 0]);
+
+    const y2 = d3.scaleLinear().domain([0, 100]).range([height, 0]);
+
+    svg.append("g")
+        .attr("transform", `translate(0,${height})`)
+        .call(d3.axisBottom(x))
+        .selectAll("text")
+        .attr("transform", "rotate(-45)")
+        .style("text-anchor", "end");
+
+    svg.append("g").call(d3.axisLeft(y).ticks(5));
+    svg.append("g")
+        .attr("transform", `translate(${width},0)`)
+        .call(d3.axisRight(y2).ticks(5).tickFormat((d) => d + "%"));
+
+    const tooltip = d3.select("#tooltipRecepcionAlistamiento");
+
+    svg.selectAll(".bar-materia")
+        .data(data)
+        .enter()
+        .append("rect")
+        .attr("class", "bar-materia")
+        .attr("x", (d) => x(d.lote_proveedor))
+        .attr("y", (d) => y(d.materia))
+        .attr("width", x.bandwidth() / 2)
+        .attr("height", (d) => height - y(d.materia))
+        .attr("fill", "#6c780d")
+        .on("mouseover", (event, d) => {
+            tooltip
+                .style("opacity", 1)
+                .html(
+                    `<strong>${d.lote_proveedor}</strong><br/>
+                    Materia útil: ${d.materia.toLocaleString()} kg<br/>
+                    Rechazo: ${d.rechazo.toLocaleString()} kg<br/>
+                    Maduro: ${d.maduro.toLocaleString()} kg<br/>
+                    Rendimiento: ${d.rendimiento}%`,
+                )
+                .style("left", event.pageX + 10 + "px")
+                .style("top", event.pageY - 28 + "px");
+        })
+        .on("mouseout", () => tooltip.style("opacity", 0));
+
+    svg.selectAll(".bar-rechazo")
+        .data(data)
+        .enter()
+        .append("rect")
+        .attr("class", "bar-rechazo")
+        .attr("x", (d) => x(d.lote_proveedor) + x.bandwidth() / 2)
+        .attr("y", (d) => y(d.rechazo + d.maduro))
+        .attr("width", x.bandwidth() / 2)
+        .attr("height", (d) => height - y(d.rechazo + d.maduro))
+        .attr("fill", "#F29B38")
+        .on("mouseover", (event, d) => {
+            tooltip
+                .style("opacity", 1)
+                .html(
+                    `<strong>${d.lote_proveedor}</strong><br/>
+                    Pérdidas (rechazo+maduro): ${(d.rechazo + d.maduro).toLocaleString()} kg<br/>
+                    Pérdida: ${d.perdida}%`,
+                )
+                .style("left", event.pageX + 10 + "px")
+                .style("top", event.pageY - 28 + "px");
+        })
+        .on("mouseout", () => tooltip.style("opacity", 0));
+
+    const line = d3
+        .line()
+        .x((d) => x(d.lote_proveedor) + x.bandwidth() / 2)
+        .y((d) => y2(d.rendimiento));
+
+    svg.append("path")
+        .datum(data)
+        .attr("fill", "none")
+        .attr("stroke", "#0d6efd")
+        .attr("stroke-width", 2)
+        .attr("d", line);
+}
+
+// ========================= //
+//   CONTROL DE FRITURA
+// ========================= //
+
+function drawGraficaControlFritura() {
+    const data = calidad_global.controlFritura;
+    if (!data || data.length === 0) return;
+
+    const container = document.querySelector(".container-calidad-fritura");
+    const containerWidth = container.offsetWidth;
+
+    const margin = { top: 40, right: 40, bottom: 60, left: 70 };
+    const width = Math.max(600, containerWidth - margin.left - margin.right);
+    const height = 400;
+
+    const svg = d3
+        .select("#graficaControlFritura")
+        .attr("width", width + margin.left + margin.right)
+        .attr("height", height + margin.top + margin.bottom)
+        .append("g")
+        .attr("transform", `translate(${margin.left},${margin.top})`);
+
+    const labels = data.map(
+        (d) => d.lote_produccion || `Proc ${d.id_proceso}`,
+    );
+
+    const x = d3
+        .scaleBand()
+        .domain(labels)
+        .range([0, width])
+        .padding(0.2);
+
+    const maxTemp = d3.max(data, (d) => d.temperatura_fritura);
+    const maxTiempo = d3.max(data, (d) => d.tiempo_fritura);
+
+    const y = d3
+        .scaleLinear()
+        .domain([0, Math.max(maxTemp, maxTiempo)])
+        .nice()
+        .range([height, 0]);
+
+    svg.append("g")
+        .attr("transform", `translate(0,${height})`)
+        .call(d3.axisBottom(x))
+        .selectAll("text")
+        .attr("transform", "rotate(-45)")
+        .style("text-anchor", "end");
+
+    svg.append("g").call(d3.axisLeft(y));
+
+    const tooltip = d3.select("#tooltipControlFritura");
+
+    const lineTemp = d3
+        .line()
+        .x((d) => x(d.label) + x.bandwidth() / 2)
+        .y((d) => y(d.temperatura));
+
+    const lineTiempo = d3
+        .line()
+        .x((d) => x(d.label) + x.bandwidth() / 2)
+        .y((d) => y(d.tiempo));
+
+    const series = data.map((d, i) => ({
+        label: labels[i],
+        temperatura: d.temperatura_fritura,
+        tiempo: d.tiempo_fritura,
+        rechazo: d.rechazo,
+        migas: d.migas,
+    }));
+
+    svg.append("path")
+        .datum(series)
+        .attr("fill", "none")
+        .attr("stroke", "#dc3545")
+        .attr("stroke-width", 2)
+        .attr("d", lineTemp);
+
+    svg.append("path")
+        .datum(series)
+        .attr("fill", "none")
+        .attr("stroke", "#0d6efd")
+        .attr("stroke-width", 2)
+        .attr("d", lineTiempo);
+
+    svg.selectAll(".punto-temp")
+        .data(series)
+        .enter()
+        .append("circle")
+        .attr("class", "punto-temp")
+        .attr("cx", (d) => x(d.label) + x.bandwidth() / 2)
+        .attr("cy", (d) => y(d.temperatura))
+        .attr("r", 4)
+        .attr("fill", "#dc3545")
+        .on("mouseover", (event, d) => {
+            tooltip
+                .style("opacity", 1)
+                .html(
+                    `<strong>${d.label}</strong><br/>
+                    Temperatura: ${d.temperatura} °C<br/>
+                    Tiempo: ${d.tiempo} min<br/>
+                    Rechazo: ${d.rechazo} kg<br/>
+                    Migas: ${d.migas} kg`,
+                )
+                .style("left", event.pageX + 10 + "px")
+                .style("top", event.pageY - 28 + "px");
+        })
+        .on("mouseout", () => tooltip.style("opacity", 0));
+
+    svg.selectAll(".punto-tiempo")
+        .data(series)
+        .enter()
+        .append("circle")
+        .attr("class", "punto-tiempo")
+        .attr("cx", (d) => x(d.label) + x.bandwidth() / 2)
+        .attr("cy", (d) => y(d.tiempo))
+        .attr("r", 4)
+        .attr("fill", "#0d6efd")
+        .on("mouseover", (event, d) => {
+            tooltip
+                .style("opacity", 1)
+                .html(
+                    `<strong>${d.label}</strong><br/>
+                    Temperatura: ${d.temperatura} °C<br/>
+                    Tiempo: ${d.tiempo} min<br/>
+                    Rechazo: ${d.rechazo} kg<br/>
+                    Migas: ${d.migas} kg`,
+                )
+                .style("left", event.pageX + 10 + "px")
+                .style("top", event.pageY - 28 + "px");
+        })
+        .on("mouseout", () => tooltip.style("opacity", 0));
+}
+
+// ========================= //
+//   VERIFICACIÓN EMPAQUE/PESO
+// ========================= //
+
+function drawGraficaVerificacionEmpaque() {
+    const data = calidad_global.verificacionEmpaque;
+    if (!data || data.length === 0) return;
+
+    const agrupado = d3.rollups(
+        data,
+        (v) => d3.mean(v, (d) => d.peso_caja || d.peso_paquete || 0),
+        (d) => d.lote_empaque || d.lote_produccion || "Sin lote",
+    );
+
+    const series = agrupado.map(([lote, pesoProm]) => ({
+        lote,
+        pesoProm,
+    }));
+
+    const container = document.querySelector(".container-calidad-empaque");
+    const containerWidth = container.offsetWidth;
+
+    const margin = { top: 40, right: 40, bottom: 60, left: 70 };
+    const width = Math.max(600, containerWidth - margin.left - margin.right);
+    const height = 400;
+
+    const svg = d3
+        .select("#graficaVerificacionEmpaque")
+        .attr("width", width + margin.left + margin.right)
+        .attr("height", height + margin.top + margin.bottom)
+        .append("g")
+        .attr("transform", `translate(${margin.left},${margin.top})`);
+
+    const x = d3
+        .scaleBand()
+        .domain(series.map((d) => d.lote))
+        .range([0, width])
+        .padding(0.2);
+    const y = d3
+        .scaleLinear()
+        .domain([0, d3.max(series, (d) => d.pesoProm)])
+        .nice()
+        .range([height, 0]);
+
+    svg.append("g")
+        .attr("transform", `translate(0,${height})`)
+        .call(d3.axisBottom(x))
+        .selectAll("text")
+        .attr("transform", "rotate(-45)")
+        .style("text-anchor", "end");
+
+    svg.append("g").call(d3.axisLeft(y));
+
+    const tooltip = d3.select("#tooltipVerificacionEmpaque");
+
+    svg.selectAll(".bar")
+        .data(series)
+        .enter()
+        .append("rect")
+        .attr("class", "bar")
+        .attr("x", (d) => x(d.lote))
+        .attr("y", (d) => y(d.pesoProm))
+        .attr("width", x.bandwidth())
+        .attr("height", (d) => height - y(d.pesoProm))
+        .attr("fill", "#B7CC93")
+        .on("mouseover", (event, d) => {
+            tooltip
+                .style("opacity", 1)
+                .html(
+                    `<strong>${d.lote}</strong><br/>Peso promedio: ${d.pesoProm.toFixed(2)} kg`,
+                )
+                .style("left", event.pageX + 10 + "px")
+                .style("top", event.pageY - 28 + "px");
+        })
+        .on("mouseout", () => tooltip.style("opacity", 0));
 }
 
 // ========================= //

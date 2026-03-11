@@ -37,4 +37,9 @@ const verificaciones = sequelize.define(
   }
 );
 
+verificaciones.belongsTo(Responsable, {
+  as: "responsable",
+  foreignKey: "id_responsable",
+});
+
 export default verificaciones;

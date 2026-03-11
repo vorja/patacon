@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 
 use Barryvdh\DomPDF\Facade\Pdf;
+use Maatwebsite\Excel\Facades\Excel;
+use App\Exports\IndicadoresCalidadExport;
 
 class PdfController extends Controller
 {
@@ -180,6 +182,24 @@ class PdfController extends Controller
             ])->setPaper('letter', 'landscape'); // Cambiado a 'letter' para tamaño carta
 
             return $pdf->stream('reporte-performance-anual.pdf');
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => $e->getMessage(),
+                'line' => $e->getLine(),
+                'file' => $e->getFile()
+            ], 500);
+        }
+    }
+
+    public function indicadoresCalidadExcel(Request $request)
+    {
+        $data = $request->all();
+
+        try {
+            return Excel::download(
+                new IndicadoresCalidadExport($data),
+                'indicadores_calidad.xlsx'
+            );
         } catch (\Exception $e) {
             return response()->json([
                 'error' => $e->getMessage(),

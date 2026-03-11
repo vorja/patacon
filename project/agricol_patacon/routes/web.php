@@ -17,7 +17,7 @@ Route::post('/sesion', [AuthController::class, 'guardarSesion']);
 
 Route::get('/logout', [AuthController::class, 'logout'])->name('logout');
 
-Route::middleware(['auth.sesion'])->group(function () {
+    Route::middleware(['auth.sesion'])->group(function () {
      /*
     /////////////////////
   //AREA ADMINISTRATIVA
@@ -35,6 +35,7 @@ Route::middleware(['auth.sesion'])->group(function () {
     Route::post('/reporte-empaque', [PdfController::class, 'empaquePDF'])->name('reportes.empaque');
     Route::post('/reporte-contenedor', [PdfController::class, 'contenedorPDF'])->name('reportes.contenedor');
     Route::post('/reporte-performance-anual', [PdfController::class, 'performanceAnualPDF'])->name('reportes.performance-anual');
+    Route::post('/reporte-indicadores-calidad-excel', [PdfController::class, 'indicadoresCalidadExcel'])->name('reportes.indicadores-calidad-excel');
 
     Route::prefix('/database')->middleware('role:Dashboard,Gerente,Productor,RRHH')->group(function () {
 
