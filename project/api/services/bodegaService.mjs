@@ -622,68 +622,60 @@ export const getAllCajasBodega = async (orden) => {
 };
 
 export const getAllLotes = async (lote, idProduccion, tipo) => {
-  // Obtenemos la Informacion del Proveedor de la fritrura
+  console.log("📥 getAllLotes llamado con:", { lote, idProduccion, tipo });
+
+  // Obtenemos la Información del Proveedor de la fritura
   const registroPro = await DetalleProveedor.findAll({
-    attributes: ["id"],
     where: {
       [Op.and]: [{ id_fritura: idProduccion }],
     },
   });
+  console.log("📦 DetalleProveedor encontrados:", registroPro.length);
+  if (registroPro.length > 0) {
+    console.log("   Primer registro:", registroPro[0]);
+  }
 
-  // Obtenemos la Informacion del Proveedor de Empaque
+  // Obtenemos la Información del Proveedor de Empaque (DetalleEmpaque)
   const detalleEmpaque = await DetalleEmpaque.findAll({
-    attributes: [
-      "fecha_empaque",
-      "fecha_produccion",
-      "numero_canastas",
-      "tipo",
-      "lote_produccion",
-      "total_cajas",
-    ],
     where: { [Op.and]: [{ lote_produccion: lote }, { tipo: tipo }] },
     include: [
       {
         model: RegistroAreaEmpaque,
         as: "empaque",
-        attributes: ["lote_empaque"],
       },
     ],
   });
+  console.log("📦 DetalleEmpaque encontrados:", detalleEmpaque.length);
+  if (detalleEmpaque.length > 0) {
+    console.log("   Primer registro:", detalleEmpaque[0]);
+  }
 
   const proveedoresEmpaque = await ProveedoresEmpaque.findAll({
-    attributes: [
-      "fecha_produccion",
-      "lote_proveedor",
-      "tipo",
-      "lote_produccion",
-      "canastas",
-    ],
     where: { [Op.and]: [{ lote_produccion: lote }, { tipo: tipo }] },
   });
+  console.log("📦 ProveedoresEmpaque encontrados:", proveedoresEmpaque.length);
+  if (proveedoresEmpaque.length > 0) {
+    console.log("   Primer registro:", proveedoresEmpaque[0]);
+  }
 
   const infoCajas = await Promise.all(
     registroPro.map(async (proceso) => {
       const detalle = await VariablesProveedor.findAll({
-        attributes: [
-          "lote_proveedor",
-          "lote_produccion",
-          "tipo",
-          "canastas",
-          "id_proveedor",
-        ],
         where: { id_proceso: proceso.id, tipo: tipo },
         raw: true,
       });
-
       return {
-        ...proceso,
+        ...proceso.toJSON(),
         detalle,
       };
     }),
   );
+  console.log("📦 infoCajas construido (cantidad procesos):", infoCajas.length);
+  if (infoCajas.length > 0) {
+    console.log("   Primer proceso con detalle:", infoCajas[0]);
+  }
 
-  // Calculamos saldo de canastillas
-  // Filtrar solo los elementos que tienen detalle
+  // Calculamos saldo de canastillas con la nueva lógica
   const infoCajasConDetalle = infoCajas.filter(
     (fritura) => fritura.detalle && fritura.detalle.length > 0,
   );
@@ -700,15 +692,32 @@ export const getAllLotes = async (lote, idProduccion, tipo) => {
       0,
     );
 
+    // Calcular saldo inicial
+    let saldoCalculado = fritura.detalle[0].canastas - totalEmpaque;
+    let empaquesCalculado = totalEmpaque;
+
+    // Aplicar la nueva lógica
+    if (saldoCalculado < 0) {
+      // Si saldo es negativo, se vuelve 0 y empaques es igual a canastas
+      saldoCalculado = 0;
+      empaquesCalculado = fritura.detalle[0].canastas;
+    } else if (saldoCalculado > 0) {
+      // Si saldo es positivo, empaques es igual a saldo - canastas
+      empaquesCalculado = saldoCalculado - fritura.detalle[0].canastas;
+    }
+    // Si saldoCalculado === 0, mantenemos empaquesCalculado = totalEmpaque
+
     return {
       lote_produccion: fritura.detalle[0].lote_produccion,
       lote_proveedor: fritura.detalle[0].lote_proveedor ?? "",
       tipo: tipo,
-      saldo: fritura.detalle[0].canastas - totalEmpaque,
+      saldo: saldoCalculado,
       canastas: fritura.detalle[0].canastas,
-      empaques: totalEmpaque,
+      empaques: empaquesCalculado,
     };
   });
+
+  console.log("📊 Saldo calculado con nueva lógica:", saldo);
 
   const detalle = detalleEmpaque.map((op) => ({
     empaque: op.fecha_empaque,
@@ -718,6 +727,7 @@ export const getAllLotes = async (lote, idProduccion, tipo) => {
     canastas: op.numero_canastas,
     tipo: op.tipo,
   }));
+  console.log("📋 Detalle final de lotes:", detalle);
 
   return {
     lotes: detalle,
@@ -790,6 +800,24 @@ export const getDetalles = async (orden, req, res) => {
       };
     }
 
+    // Función auxiliar para procesar el campo "diferente"
+    const procesarDiferente = (diferente) => {
+      const resultado = {};
+      if (diferente && typeof diferente === 'string') {
+        const partes = diferente.split(',').map(item => item.trim());
+        for (let i = 0; i < partes.length; i += 2) {
+          if (partes[i] && partes[i + 1]) {
+            const tipo = partes[i].toUpperCase();
+            const cantidad = parseInt(partes[i + 1], 10);
+            if (!isNaN(cantidad)) {
+              resultado[tipo] = (resultado[tipo] || 0) + cantidad;
+            }
+          }
+        }
+      }
+      return resultado;
+    };
+
     // Objeto para agrupar por fecha de producción
     const sumasPorFecha = {};
     // Objeto para totales generales
@@ -809,12 +837,15 @@ export const getDetalles = async (orden, req, res) => {
       const proveedor = lote.proveedor?.nombre ?? "Sin proveedor";
       const tipo = lote.tipo;
       const cajas = lote.cajas || 0;
+      
+      // Procesar el campo diferente
+      const diferenteTipos = procesarDiferente(lote.diferente);
 
       // Inicializar fecha si no existe
       if (!sumasPorFecha[fechaProduccion]) {
         sumasPorFecha[fechaProduccion] = {
           fecha_produccion: fechaProduccion,
-          proveedores: {}, // Para mantener el detalle por proveedor si es necesario
+          proveedores: {},
           A: 0,
           B: 0,
           C: 0,
@@ -827,7 +858,7 @@ export const getDetalles = async (orden, req, res) => {
         };
       }
 
-      // Inicializar proveedor dentro de la fecha si quieres mantener el detalle
+      // Inicializar proveedor dentro de la fecha
       if (!sumasPorFecha[fechaProduccion].proveedores[proveedor]) {
         sumasPorFecha[fechaProduccion].proveedores[proveedor] = {
           nombre: proveedor,
@@ -843,8 +874,9 @@ export const getDetalles = async (orden, req, res) => {
         };
       }
 
-      // Sumar por tipo para la fecha
-      switch (tipo) {
+      // Sumar por tipo principal
+      const tipoPrincipal = tipo.toUpperCase();
+      switch (tipoPrincipal) {
         case "A":
           sumasPorFecha[fechaProduccion].A += cajas;
           sumasPorFecha[fechaProduccion].proveedores[proveedor].A += cajas;
@@ -890,7 +922,28 @@ export const getDetalles = async (orden, req, res) => {
           console.log(`Tipo no reconocido: ${tipo}`);
       }
 
-      // Calcular total de cajas por fecha
+      // Sumar los tipos del campo "diferente"
+      Object.entries(diferenteTipos).forEach(([tipoDiff, cantidad]) => {
+        const tipoKey = tipoDiff.toUpperCase();
+        
+        // Validar que sea un tipo válido
+        if (totalesGenerales.hasOwnProperty(tipoKey)) {
+          // Sumar a la fecha
+          sumasPorFecha[fechaProduccion][tipoKey] = (sumasPorFecha[fechaProduccion][tipoKey] || 0) + cantidad;
+          
+          // Sumar al proveedor dentro de la fecha
+          sumasPorFecha[fechaProduccion].proveedores[proveedor][tipoKey] = 
+            (sumasPorFecha[fechaProduccion].proveedores[proveedor][tipoKey] || 0) + cantidad;
+          
+          // Sumar a los totales generales
+          totalesGenerales[tipoKey] += cantidad;
+          
+          // Sumar al total de cajas de la fecha
+          sumasPorFecha[fechaProduccion].total_cajas += cantidad;
+        }
+      });
+
+      // Calcular total de cajas por fecha (incluye el tipo principal)
       sumasPorFecha[fechaProduccion].total_cajas += cajas;
     });
 
@@ -943,7 +996,6 @@ export const getDetalles = async (orden, req, res) => {
     };
   }
 };
-
 export const update = async (data) => {
   console.log("🔧 UPDATE llamado con datos:", JSON.stringify(data, null, 2));
 

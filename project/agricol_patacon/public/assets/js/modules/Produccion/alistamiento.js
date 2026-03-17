@@ -1699,15 +1699,7 @@ function cargarProveedoresSwal(proveedores) {
             
             // Generar nuevo lote para mañana basado en el lote original
             if (lote) {
-                const tomorrow = new Date(fechaHoy);
-                tomorrow.setDate(tomorrow.getDate() + 1);
-                const day = String(tomorrow.getDate()).padStart(2, "0");
-                const month = String(tomorrow.getMonth() + 1); // Sin padStart para evitar el cero inicial
-                const year = String(tomorrow.getFullYear()).slice(-2);
-
-                // Mantener los primeros caracteres del lote original y agregar fecha
-                const loteBase = lote.substring(0, Math.min(3, lote.length));
-                document.getElementById("swal-lote").value = `${loteBase}${day}${month}${year}`;
+                document.getElementById("swal-lote").value = `${lote}`;
             }   
             // Mostrar información de disponibilidad
             console.log('Proveedor seleccionado:', {

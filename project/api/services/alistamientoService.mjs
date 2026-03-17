@@ -30,13 +30,6 @@ export const restarCantidad = async (id, data) => {
       throw new Error("Registro de recepción no encontrado");
     }
 
-    // Verificar que haya suficiente cantidad para restar
-    if (registro.materia_recep < cantidad_restar_kg) {
-      throw new Error(
-        `No hay suficiente materia prima. Disponible: ${registro.materia_recep} kg`,
-      );
-    }
-
     // Calcular nueva cantidad
     const nuevaMateriaRecep = registro.materia_recep - cantidad_restar_kg;
     const nuevaCantidad = registro.cantidad - cantidad_restar_kg;

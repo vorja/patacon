@@ -92,7 +92,7 @@
                     <div class="border-bottom mb-3"></div>
                     <input type="number" min="0" step="0.1"
                         class="form-control form-control-lg shadow-sm numeric text-center fw-semibold rounded"
-                        id="totalCanastas" required readonly  autocomplete="off">
+                        id="totalCanastas" required readonly autocomplete="off">
                     <div class="invalid-feedback">
                         Este campo es obligatorio.
                     </div>
@@ -116,7 +116,7 @@
                     <div class="border-bottom mb-3"></div>
                     <input type="number" min="0" step="0.1"
                         class="form-control form-control-lg shadow-sm numeric text-center rounded " id="totalRechazo"
-                        required readonly  autocomplete="off">
+                        required readonly autocomplete="off">
                     <div class="invalid-feedback">
                         Este campo es obligatorio.
                     </div>
@@ -283,7 +283,7 @@
                                         </h5>
                                         <input type="number"
                                             class="form-control form-control-lg rounded shadow-sm fs-4  text-center numeric fw-semibold"
-                                            min="0"  id="canastas" readonly required>
+                                            min="0" id="canastas" readonly required>
                                         <div class="invalid-feedback">
                                             Este campo es obligatorio.
                                         </div>
@@ -331,7 +331,6 @@
                                         </div>
                                     </div>
 
-
                                     <div class="d-grid gap-2 col-3 mx-auto">
                                         <button type="button"
                                             class="btn  fs-5 shadow-lg fw-bold text-white mt-5 p-2 btn-Registrar"
@@ -340,6 +339,37 @@
                                             <i class="fa-solid fa-circle-check me-2"></i> REGISTRAR </button>
                                     </div>
 
+                                </div>
+                                <div class="col">
+                                    <h5 class="fw-semibold text-uppercase mt-3" style="color:#6c780d;">
+                                        <i class="fa-solid fa-tag me-1" style="color:#ec6704;"></i>
+                                        Referencia Diferente
+                                    </h5>
+                                    <select class="form-select shadow-sm rounded text-dark text-center fw-bold p-3"
+                                        id="referencia_diferente">
+                                        <option value="">-- Sin referencia diferente --</option>
+                                        <option value="A">A</option>
+                                        <option value="B">B</option>
+                                        <option value="C">C</option>
+                                        <option value="AF">AF</option>
+                                        <option value="BH">BH</option>
+                                        <option value="XL">XL</option>
+                                        <option value="CIL">CIL</option>
+                                        <option value="P">P</option>
+                                    </select>
+                                </div>
+
+                                <div class="col">
+                                    <h5 class="fw-semibold text-uppercase mt-3" style="color:#6c780d;">
+                                        <i class="fa-solid fa-boxes-stacked me-1" style="color:#ec6704;"></i>
+                                        Cajas Diferentes
+                                    </h5>
+                                    <input type="number" class="form-control rounded shadow-sm fs-4 text-center numeric"
+                                        min="0" placeholder="Cantidad de cajas diferentes" id="cajas_diferente"
+                                        readonly>
+                                    <div class="invalid-feedback">
+                                        Ingrese un valor válido.
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -361,6 +391,7 @@
                                     <div class="col-12">
                                         <div class="tabla table-responsive">
                                             <table class="table tabla-personalized" id="tablaInfo">
+                                                <!-- En el thead de la tabla, modificar para incluir las nuevas columnas -->
                                                 <thead>
                                                     <tr>
                                                         <th rowspan="1" class="AG text-center;">Produccion</th>
@@ -368,11 +399,14 @@
                                                         <th rowspan="1" class="M text-center;">Tipo</th>
                                                         <th rowspan="1" class="M text-center;">Canastas</th>
                                                         <th rowspan="1" class="M text-center;">Cajas</th>
+                                                        <th rowspan="1" class="M text-center;">Ref. Dif</th>
+                                                        <!-- Nueva columna -->
+                                                        <th rowspan="1" class="M text-center;">Cajas Dif</th>
+                                                        <!-- Nueva columna -->
                                                         <th rowspan="1" class="M text-center;">Rechazo</th>
                                                         <th rowspan="1" class="M text-center;">Migas</th>
                                                         <th rowspan="1" class="F text-center;">Acción</th>
                                                     </tr>
-
                                                 </thead>
                                                 <tbody>
                                                 </tbody>

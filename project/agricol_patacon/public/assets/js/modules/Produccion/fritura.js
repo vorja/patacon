@@ -248,13 +248,27 @@ function restaurarTablas() {
 }
 
 // Función para limpiar sessionStorage
+// Función para limpiar sessionStorage
 function limpiarSesion() {
-    sessionStorage.clear(STORAGE_KEYS.INFO_PROVEEDORES);
-    sessionStorage.clear(STORAGE_KEYS.GLOBAL_DATA);
-    sessionStorage.clear(STORAGE_KEYS.TIPOS);
-    sessionStorage.clear(STORAGE_KEYS.TABLES_DATA);
-    sessionStorage.clear("fritura_processData");
-    console.log("sessionStorage limpiado");
+    // Limpiar todas las claves específicas
+    sessionStorage.removeItem(STORAGE_KEYS.INFO_PROVEEDORES);
+    sessionStorage.removeItem(STORAGE_KEYS.GLOBAL_DATA);
+    sessionStorage.removeItem(STORAGE_KEYS.TIPOS);
+    sessionStorage.removeItem(STORAGE_KEYS.TABLES_DATA);
+    sessionStorage.removeItem("fritura_processData");
+    
+    // También limpiar cualquier otra clave que pueda haber quedado
+    const keysToRemove = [];
+    for (let i = 0; i < sessionStorage.length; i++) {
+        const key = sessionStorage.key(i);
+        if (key && key.startsWith('fritura_')) {
+            keysToRemove.push(key);
+        }
+    }
+    
+    keysToRemove.forEach(key => sessionStorage.removeItem(key));
+    
+    console.log("sessionStorage limpiado completamente");
 }
 
 const init = async () => {
@@ -262,7 +276,7 @@ const init = async () => {
     await referencias();
     await empleado();
     await cargarProveedores();
-    
+
     await obtenerRecepciones();
 
     // Cargar datos guardados
@@ -1231,7 +1245,9 @@ function obtenerLotes() {
 }
 
 async function enviarFormulario() {
+    // Limpiar sesión ANTES de procesar el nuevo formulario
     limpiarSesion();
+
     const dataLotes = obtenerLotes();
 
     const camposObligatorios = [
@@ -1314,7 +1330,7 @@ async function enviarFormulario() {
         lotes: dataLotes,
     };
 
-    console.log("los datos a enviar : ",datos);
+    console.log("los datos a enviar : ", datos);
 
     try {
         const respuesta = await apiFritura.post("/crear", datos, {
@@ -1324,11 +1340,20 @@ async function enviarFormulario() {
             },
         });
 
-            console.log("los datos recibidos : ", respuesta);
+        console.log("los datos recibidos : ", respuesta);
 
         if (respuesta.success) {
             // Limpiar sessionStorage después de enviar exitosamente
             limpiarSesion();
+
+            // También limpiar las variables globales
+            infoProveedores = [];
+            Global_data.tipos = [];
+            Global_data.lotes = [];
+            Global_data.loteProveedores = [];
+            Global_data.producto = [];
+            tipos = {};
+
             alerts.show(respuesta);
             setTimeout(() => {
                 window.location.reload();

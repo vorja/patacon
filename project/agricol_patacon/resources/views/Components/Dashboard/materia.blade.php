@@ -130,7 +130,6 @@
                                         </th>
                                         <th class="M text-center"><i class="fas fa-tag me-1"></i>LOTE RECEPCION</th>
                                         <th class="M text-center"> CANTIDAD</th>
-                                        <th class="text-center"></th>
                                     </tr>
                                 </thead>
                                 <tbody>

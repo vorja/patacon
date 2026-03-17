@@ -64,13 +64,15 @@ export const getDetalleMateriaLote = async (id) => {
       );
     }
 
-    // Obtener el lote para buscar en otras tablas
+    // Obtener el lote y id_proveedor para buscar en otras tablas
     const lote = materiaRegistro.lote_proveedor;
+    const idProveedor = materiaRegistro.id_proveedor;
 
-    // Obtener información de recepción OP por lote
+    // Obtener información de recepción OP por lote Y id_proveedor
     const registroRecepcionOp = await RegistroRecepcionMateriaPrimaOp.findOne({
       where: {
         lote: lote,
+        id_proveedor: idProveedor, // Agregamos filtro por proveedor
       },
     });
 
@@ -84,10 +86,11 @@ export const getDetalleMateriaLote = async (id) => {
       });
     }
 
-    // También obtener información de plátano maduro relacionada por lote
+    // También obtener información de plátano maduro relacionada por lote Y id_proveedor
     const maduroRelacionado = await InventarioPlatanoMaduro.findAll({
       where: {
         lote_proveedor: lote,
+        id_proveedor: idProveedor, // Agregamos filtro por proveedor
       },
     });
 
@@ -108,6 +111,7 @@ export const getDetalleMateriaLote = async (id) => {
         materia_proceso: materiaRegistro.materia_proceso,
         restante: materiaRegistro.materia_recp - materiaRegistro.materia_proceso,
         proveedor: proveedor.nombre,
+        id_proveedor: materiaRegistro.id_proveedor, // Agregamos el id_proveedor al registro
       },
       // Información de recepción OP
       recepcion_op: registroRecepcionOp

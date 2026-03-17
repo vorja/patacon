@@ -1,8 +1,8 @@
-import { AlertManager, ApiService } from "../../helpers/ApiUseManager.js";
+import { AlertManager, ApiService, Url } from "../../helpers/ApiUseManager.js";
 import eventManager from "../../helpers/EventsManager.js";
 import notificationManager from "../../helpers/NotificacionesManger.js";
 
-const API_INV_MATERIA = new ApiService("http://localhost:3105/data/materia");
+const API_INV_MATERIA = new ApiService(Url + "/data/materia");
 const alerts = new AlertManager();
 
 const token = document
@@ -68,6 +68,7 @@ async function cargarMateria() {
             responsive: true,
             orderCellsTop: true,
             deferRender: true,
+            order: [[0, "desc"]],
             dom: "lfrtip",
             lengthMenu: [
                 [10, 25, 50, 100, -1],
@@ -84,20 +85,19 @@ async function cargarMateria() {
                 {
                     data: null,
                     render: (data, type, row) => `
- <div class="btn-group dropend">
-  <button type="button" class="btn btn-light btn-sm dropdown-toggle text-center d-flex align-items-center justify-content-center"
-  data-bs-toggle="dropdown" aria-expanded="false" style="background-color: #fffefdef; width: 42px; height: 42px; border-radius: 50%;">
-    <i class="fas fa-ellipsis-v"></i>
-  </button>
-  <ul class="dropdown-menu shadow-sm border-0 rounded-3 suggestions">
-    <li>
-      <a class="dropdown-item d-flex align-items-center info-btn" href="#" data-lote="${row.lote_proveedor}" data-id="${row.id}" data-tipo="materia">
-        <i class="fas fa-circle-info text-info me-2"></i> Información
-      </a>
-    </li>
-  </ul>
-</div>
-                `,
+                    <div class="btn-group dropend">
+                    <button type="button" class="btn btn-light btn-sm dropdown-toggle text-center d-flex align-items-center justify-content-center"
+                    data-bs-toggle="dropdown" aria-expanded="false" style="background-color: #fffefdef; width: 42px; height: 42px; border-radius: 50%;">
+                        <i class="fas fa-ellipsis-v"></i>
+                    </button>
+                    <ul class="dropdown-menu shadow-sm border-0 rounded-3 suggestions">
+                        <li>
+                        <a class="dropdown-item d-flex align-items-center info-btn" href="#" data-lote="${row.lote_proveedor}" data-id="${row.id}" data-tipo="materia">
+                            <i class="fas fa-circle-info text-info me-2"></i> Información
+                        </a>
+                        </li>
+                    </ul>
+                    </div>`,
                 },
             ],
             columnDefs: [
@@ -210,6 +210,7 @@ async function cargarMateria() {
             responsive: true,
             orderCellsTop: true,
             deferRender: true,
+            order: [[0, "desc"]],
             dom: "lfrtip",
             lengthMenu: [
                 [10, 25, 50, 100, -1],
@@ -221,17 +222,6 @@ async function cargarMateria() {
                 { data: "producto" },
                 { data: "lote_proveedor" },
                 { data: "cantidad" },
-                {
-                    data: null,
-                    render: (data, type, row) => `
- <div class="btn-group dropend">
-  <button type="button" dysplay="block" class="btn btn-light btn-sm dropdown-toggle text-center d-flex align-items-center justify-content-center"
-  data-bs-toggle="dropdown" aria-expanded="false" style="background-color: #fffefdef; width: 42px; height: 42px; border-radius: 50%;">
-    <i class="fas fa-ellipsis-v"></i>
-  </button>
-</div>
-                `,
-                },
             ],
             columnDefs: [
                 {
@@ -299,7 +289,7 @@ async function cargarMateria() {
                 let numRegistros = api.rows({ filter: "applied" }).count();
                 let pageLength = api.page.len(); // Obtiene el pageLength actual
                 let tableWrapper = $(api.table().container());
-                
+
                 // Solo ocultar si los registros son MENOS o IGUALES que el pageLength
                 if (numRegistros <= pageLength) {
                     tableWrapper.find(".dataTables_paginate").hide();

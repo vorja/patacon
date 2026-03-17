@@ -1,6 +1,7 @@
-import { col, fn, Op } from "sequelize";
+import { and, col, fn, Op } from "sequelize";
 import Responsable from "../models/responsable.mjs";
 import RegistroRecepcionMateriaPrima from "../models/registroRecepcionMateriaPrima.mjs";
+import RegistroRecepcionOp from "../models/resgistroRecepcionOp.mjs";
 import DetalleRecepcion from "../models/detalleRecepcion.mjs";
 import Proveedor from "../models/proveedores.mjs";
 import Produccion from "../models/produccion.mjs";
@@ -147,13 +148,30 @@ export const create = async (data) => {
         transaction,
       });
     }
+    const opcional = await RegistroRecepcionOp.findOne({
+      where: {
+        fecha: informacion.fecha_procesamiento,
+        id_proveedor: informacion.id_proveedor,
+      },
+    });
 
     if (Array.isArray(defectos)) {
       if (!creado) {
+        if (opcional) {
         await inventarioRegistro.increment(
           { materia_proceso: informacion.cantidad },
           { transaction },
+        );  
+        }
+        else {
+        await inventarioRegistro.increment(
+          { 
+            materia_proceso: informacion.cantidad,
+            materia_recp: informacion.cantidad 
+          },
+          { transaction },
         );
+      }
       }
 
       // Inserción de defectos
@@ -245,6 +263,7 @@ export const getAllProveedores = async (Orden, fecha, modulo) => {
       where: {
         [Op.and]: options,
       },
+      order: [["cantidad", "DESC"]], // Ordenar por cantidad de mayor a menor
     });
 
     if (registros.length === 0)
@@ -252,7 +271,11 @@ export const getAllProveedores = async (Orden, fecha, modulo) => {
 
     let resultado;
 
-    if (modulo === "Corte" || modulo === "Fritura" || modulo === "Alistamiento") {
+    if (
+      modulo === "Corte" ||
+      modulo === "Fritura" ||
+      modulo === "Alistamiento"
+    ) {
       // Para Corte: agrupar y sumar cantidades, manteniendo todos los IDs
       const agrupados = {};
 

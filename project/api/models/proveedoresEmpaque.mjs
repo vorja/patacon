@@ -59,11 +59,15 @@ const ProveedoresEmpaque = sequelize.define(
       type: DataTypes.FLOAT,
       allowNull: false,
     },
+    diferente: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
   },
   {
     tableName: "proveedor_has_empaque",
     timestamps: false,
-  }
+  },
 );
 
 ProveedoresEmpaque.belongsTo(Proveedor, {

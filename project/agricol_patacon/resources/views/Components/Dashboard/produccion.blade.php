@@ -628,7 +628,7 @@
                                         <div class="fill" style="background-color:#5cad1a"></div>
                                     </div>
                                     <div class="inside-circle  fw-bold fs-3"
-                                        style="background-color:rgb(210, 241, 218); color:#61a52a"" id=" platano">
+                                        style="background-color:rgb(210, 241, 218); color:#61a52a"" id="platano">
                                     </div>
                                 </div>
                             </div>
@@ -1354,7 +1354,7 @@
 
                     <div class="mb-3 col-md-6">
                         <label for="cliente_info" class="form-label">Cliente.</label>
-                        <input type="number" min="0" class="form-control form-control-sm rounded shadow-sm"
+                        <input type="text" min="0" class="form-control form-control-sm rounded shadow-sm"
                             placeholder="Sin cliente asignado" name="cliente_info" id="cliente_info" readonly>
                     </div>
 

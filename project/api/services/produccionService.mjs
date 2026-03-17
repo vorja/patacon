@@ -19,6 +19,7 @@ import ProveedoresEmpaque from "../models/proveedoresEmpaque.mjs";
 import CajasProduccion from "../models/cajasProduccion.mjs";
 import Bodega from "../models/bodega.mjs";
 import LotesFritura from "../models/lotesProduccion.mjs";
+import Cliente from "../models/clientes.mjs";
 
 // ============================================
 // CONSTANTES
@@ -1520,7 +1521,7 @@ export const getPerformanceGeneral = async (orden) => {
   const recepciones = await RegistroRecepcionMateriaPrima.findAll({
     attributes: ["id", "fecha", "cantidad", "cant_defectos", "lote"],
     include: [{ model: Proveedor, as: "proveedor", attributes: ["nombre"] }],
-    where: { orden }, // <-- Filtro por orden
+    where: { orden },
     raw: true,
     nest: true,
   });
@@ -1540,7 +1541,7 @@ export const getPerformanceGeneral = async (orden) => {
       "rechazo_corte",
       "total_materia",
     ],
-    where: { orden }, // <-- Filtro por orden
+    where: { orden },
     raw: true,
   });
 
@@ -1554,14 +1555,14 @@ export const getPerformanceGeneral = async (orden) => {
       "canastillas",
       "fecha",
     ],
-    where: { orden }, // <-- Filtro por orden
+    where: { orden },
     raw: true,
   });
 
   // Obtener todos los alistamientos filtrados por la orden
   const alistamiento = await ControlAlistamiento.findAll({
     attributes: ["id", "rechazo", "fecha"],
-    where: { orden }, // <-- Filtro por orden
+    where: { orden },
     raw: true,
   });
 
@@ -1577,7 +1578,7 @@ export const getPerformanceGeneral = async (orden) => {
       [fn("SUM", col("total_rechazo")), "rechazo_empaque"],
     ],
     where: {
-      fecha_produccion: fechasUnicas, // <-- Filtro por fechas de recepción
+      fecha_produccion: fechasUnicas,
     },
     group: ["tipo"],
     raw: true,
@@ -1710,60 +1711,86 @@ export const getPerformanceGeneral = async (orden) => {
     rechazoCorte +
     rechazoFritura +
     rechazoEmpaque;
-  // 9. RENDIMIENTO POR PROVEEDORES - VERSIÓN CORREGIDA
+
+  // 9. RENDIMIENTO POR PROVEEDORES - VERSIÓN CORREGIDA (SIN DUPLICADOS)
   const rendimientoProveedores = {};
 
-  // Primero, agrupar todas las recepciones por proveedor y lote para facilitar la suma
-  const recepcionesPorProveedorYLote = {};
+  // Primero, crear un mapa de materia recibida por proveedor (SIN DUPLICAR)
+  const materiaRecibidaPorProveedor = {};
+  const recepcionesPorLote = {}; // Para mantener el detalle por lote si es necesario
 
   recepciones.forEach((recep) => {
-    if (recep.proveedor?.nombre && recep.lote) {
-      const key = `${recep.proveedor.nombre}|${recep.lote}`;
-      if (!recepcionesPorProveedorYLote[key]) {
-        recepcionesPorProveedorYLote[key] = {
-          proveedor: recep.proveedor.nombre,
-          lote: recep.lote,
-          totalCantidad: 0,
-        };
+    if (recep.proveedor?.nombre) {
+      const proveedor = recep.proveedor.nombre;
+      
+      // Acumular por proveedor (solo una vez por recepción, pero sumamos todas las recepciones)
+      if (!materiaRecibidaPorProveedor[proveedor]) {
+        materiaRecibidaPorProveedor[proveedor] = 0;
       }
-      recepcionesPorProveedorYLote[key].totalCantidad += Number(
-        recep.cantidad || 0,
-      );
+      materiaRecibidaPorProveedor[proveedor] += Number(recep.cantidad || 0);
+      
+      // También guardar por lote para detalles
+      if (recep.lote) {
+        const key = `${proveedor}|${recep.lote}`;
+        if (!recepcionesPorLote[key]) {
+          recepcionesPorLote[key] = {
+            proveedor,
+            lote: recep.lote,
+            cantidad: 0
+          };
+        }
+        recepcionesPorLote[key].cantidad += Number(recep.cantidad || 0);
+      }
     }
   });
 
   // Procesar los cortes
+  const lotesProcesados = new Set(); // Para evitar duplicar lotes en el array de lotes
+
   proveedoresCorte.forEach((corte) => {
     const proveedor = corte.proveedor?.nombre || "Sin proveedor";
 
     if (!rendimientoProveedores[proveedor]) {
       rendimientoProveedores[proveedor] = {
         proveedor,
-        totalMateriaRecibida: 0,
+        totalMateriaRecibida: materiaRecibidaPorProveedor[proveedor] || 0, // Asignar solo una vez
         totalMateriaProcesada: 0,
         rendimiento: 0,
         lotes: [],
       };
     }
 
-    // Buscar TODAS las recepciones que coincidan con este proveedor y lote
-    const key = `${proveedor}|${corte.lote_proveedor}`;
-    const recepcionAgrupada = recepcionesPorProveedorYLote[key];
-
-    if (recepcionAgrupada) {
-      rendimientoProveedores[proveedor].totalMateriaRecibida +=
-        recepcionAgrupada.totalCantidad;
-    }
-
+    // Sumar materia procesada (esto SÍ debe sumar por cada corte)
     rendimientoProveedores[proveedor].totalMateriaProcesada += Number(
       corte.totalMateria || 0,
     );
-    rendimientoProveedores[proveedor].lotes.push({
-      lote: corte.lote_proveedor,
-      materiaRecibida: recepcionAgrupada?.totalCantidad || 0,
-      materiaProcesada: Number(corte.totalMateria || 0),
-      rendimiento: Number(corte.rendimiento || 0),
-    });
+
+    // Agregar detalle de lote (evitando duplicados)
+    const loteKey = `${proveedor}|${corte.lote_proveedor}`;
+    const recepcionLote = recepcionesPorLote[loteKey];
+    
+    if (!lotesProcesados.has(loteKey)) {
+      // Si es un lote nuevo, lo agregamos completo
+      rendimientoProveedores[proveedor].lotes.push({
+        lote: corte.lote_proveedor,
+        materiaRecibida: recepcionLote?.cantidad || 0,
+        materiaProcesada: Number(corte.totalMateria || 0),
+        rendimiento: Number(corte.rendimiento || 0),
+      });
+      lotesProcesados.add(loteKey);
+    } else {
+      // Si el lote ya existe, actualizamos la materia procesada sumando
+      const loteExistente = rendimientoProveedores[proveedor].lotes.find(
+        l => l.lote === corte.lote_proveedor
+      );
+      if (loteExistente) {
+        loteExistente.materiaProcesada += Number(corte.totalMateria || 0);
+        // Recalcular rendimiento del lote
+        loteExistente.rendimiento = loteExistente.materiaRecibida > 0
+          ? (loteExistente.materiaProcesada / loteExistente.materiaRecibida) * 100
+          : 0;
+      }
+    }
   });
 
   // Calcular rendimiento final por proveedor
@@ -1775,6 +1802,14 @@ export const getPerformanceGeneral = async (orden) => {
     prov.rendimiento = Number(prov.rendimiento.toFixed(1));
     prov.totalMateriaRecibida = Number(prov.totalMateriaRecibida.toFixed(2));
     prov.totalMateriaProcesada = Number(prov.totalMateriaProcesada.toFixed(2));
+    
+    // Redondear valores de lotes
+    prov.lotes = prov.lotes.map(lote => ({
+      ...lote,
+      materiaRecibida: Number(lote.materiaRecibida.toFixed(2)),
+      materiaProcesada: Number(lote.materiaProcesada.toFixed(2)),
+      rendimiento: Number(lote.rendimiento.toFixed(1))
+    }));
   });
 
   // 10. DATOS DE PROVEEDORES POR TIPO
@@ -2880,6 +2915,34 @@ export const create = async (data) => {
     throw new Error("No se Guardo la producción.");
   }
 
+  // Si existe cliente_relacionado y no está vacío/nulo
+  if (data.cliente_relacionado && data.cliente_relacionado !== "") {
+    try {
+      // Extraer el ID antes de la coma
+      const clienteId = data.cliente_relacionado.split(",")[0]?.trim();
+
+      // Verificar que el ID sea válido
+      if (clienteId && !isNaN(clienteId)) {
+        // Buscar el cliente primero
+        const cliente = await Cliente.findByPk(clienteId);
+
+        if (cliente) {
+          // Actualizar incrementando numero_solicitud
+          await cliente.update({
+            numero_solicitud: (cliente.numero_solicitud || 0) + 1,
+          });
+          console.log(
+            `Cliente ${clienteId} actualizado. Nuevo numero_solicitud: ${cliente.numero_solicitud + 1}`,
+          );
+        } else {
+          console.warn(`Cliente con ID ${clienteId} no encontrado`);
+        }
+      }
+    } catch (error) {
+      console.error("Error al actualizar numero_solicitud del cliente:", error);
+    }
+  }
+
   return produccion;
 };
 
@@ -2940,8 +3003,89 @@ export const update = async (id, data) => {
   if (!produccion) {
     throw new Error("Produccion no encontrada o no existe.");
   }
+
+  // Guardar el cliente anterior ANTES de actualizar
+  const clienteAnteriorRaw = produccion.cliente_relacionado;
+
+  // Extraer ID del cliente anterior si existe
+  let clienteAnteriorId = null;
+  if (clienteAnteriorRaw && clienteAnteriorRaw !== "") {
+    clienteAnteriorId = clienteAnteriorRaw.split(",")[0]?.trim();
+  }
+
   data.actualizado_en = new Date();
-  return await produccion.update(data);
+  const produccionActualizada = await produccion.update(data);
+
+  // Procesar el nuevo cliente_relacionado
+  if (data.cliente_relacionado && data.cliente_relacionado !== "") {
+    try {
+      const nuevoClienteId = data.cliente_relacionado.split(",")[0]?.trim();
+
+      if (nuevoClienteId && !isNaN(nuevoClienteId)) {
+        // Si el cliente cambió (el ID nuevo es diferente al anterior)
+        if (nuevoClienteId !== clienteAnteriorId) {
+          // 1. RESTAR 1 al cliente ANTERIOR (si existía)
+          if (clienteAnteriorId && !isNaN(clienteAnteriorId)) {
+            const clienteAnterior = await Cliente.findByPk(clienteAnteriorId);
+            if (clienteAnterior) {
+              await clienteAnterior.update({
+                numero_solicitud: Math.max(
+                  0,
+                  (clienteAnterior.numero_solicitud || 0) - 1,
+                ), // Evitar negativos
+              });
+              console.log(`Cliente anterior ${clienteAnteriorId} decrementado`);
+            }
+          }
+
+          // 2. SUMAR 1 al cliente NUEVO
+          const clienteNuevo = await Cliente.findByPk(nuevoClienteId);
+          if (clienteNuevo) {
+            await clienteNuevo.update({
+              numero_solicitud: (clienteNuevo.numero_solicitud || 0) + 1,
+            });
+            console.log(`Cliente nuevo ${nuevoClienteId} incrementado`);
+          } else {
+            console.warn(
+              `Cliente nuevo con ID ${nuevoClienteId} no encontrado`,
+            );
+          }
+        } else {
+          console.log(
+            `Mismo cliente (${nuevoClienteId}), no se modifican los contadores`,
+          );
+        }
+      }
+    } catch (error) {
+      console.error(
+        "Error al actualizar numero_solicitud del cliente en update:",
+        error,
+      );
+    }
+  } else {
+    // Si en la actualización se envía cliente_relacionado vacío, ¿qué hacemos?
+    // Podrías restar del cliente anterior si ya no tiene solicitudes asociadas
+    if (clienteAnteriorId && !isNaN(clienteAnteriorId)) {
+      try {
+        const clienteAnterior = await Cliente.findByPk(clienteAnteriorId);
+        if (clienteAnterior) {
+          await clienteAnterior.update({
+            numero_solicitud: Math.max(
+              0,
+              (clienteAnterior.numero_solicitud || 0) - 1,
+            ),
+          });
+          console.log(
+            `Cliente anterior ${clienteAnteriorId} decrementado (se quitó la solicitud)`,
+          );
+        }
+      } catch (error) {
+        console.error("Error al decrementar cliente anterior:", error);
+      }
+    }
+  }
+
+  return produccionActualizada;
 };
 
 export const statusDelete = async (id) => {

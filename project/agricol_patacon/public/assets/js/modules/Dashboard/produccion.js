@@ -2277,12 +2277,20 @@ async function formProduccion(e) {
 
     document.getElementById("lote_produccion").value = loteGenerado;
 
+    const clienteId = document.getElementById("clienteId").value.trim();
+    const clienteNombre = document.getElementById("inputCliente").value.trim();
+
+    let clienteRelacionado = "";
+    if (clienteId && clienteNombre) {
+        clienteRelacionado = `${clienteId},${clienteNombre}`; 
+    }
+
     const datosProduccion = {
         fecha_creacion: fechaCreacion,
         fecha_cierre: document.getElementById("fecha_cierre").value,
-        lote_produccion: loteGenerado, // Usar el lote generado automáticamente
+        lote_produccion: loteGenerado,
         numero_orden: document.getElementById("numero_orden").value,
-        cliente_relacionado: document.getElementById("clienteId").value + "," + document.getElementById("inputCliente").value,
+        cliente_relacionado: clienteRelacionado,
         numero_cajas: document.getElementById("numero_cajas").value,
         id_responsable: document.getElementById("id_elaboracion").value,
     };
@@ -2459,16 +2467,12 @@ async function infoProduccion(id_produccion) {
         }
         const { data } = res;
 
-        document.querySelector("#fecha_creacion_info").value =
-            data.fecha_creacion;
+        document.querySelector("#fecha_creacion_info").value = data.fecha_creacion;
         document.querySelector("#fecha_cierre_info").value = data.fecha_cierre;
-        document.querySelector("#lote_produccion_info").value =
-            data.lote_produccion;
+        document.querySelector("#lote_produccion_info").value = data.lote_produccion;
         document.querySelector("#numero_orden_info").value = data.numero_orden;
         document.querySelector("#cantidad_info").value = data.numero_cajas;
-        document.querySelector("#cliente_info").value = data.cliente_relacionado;
-
-        console.log("estes esssssss hpsss  : ", data.cliente_relacionado.split(",")[1])
+        document.querySelector("#cliente_info").value = data.cliente_relacionado ? data.cliente_relacionado.split(",")[1] || "" : "";
 
         $("#ModalInfoproduccion").modal("show");
     } catch (error) {

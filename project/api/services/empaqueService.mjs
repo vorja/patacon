@@ -11,8 +11,16 @@ import DetalleEmpaque from "../models/detalleEmpaque.mjs";
 
 export const create = async (data) => {
   console.log("🚀 INICIO - create empaque");
+  
+  // LOG DETALLADO DE LO QUE LLEGA
+  console.log("📦 DATA COMPLETA RECIBIDA:");
+  console.log("cajas:", JSON.stringify(data.cajas, null, 2));
+  console.log("infoEmpaque:", JSON.stringify(data.infoEmpaque, null, 2));
+  console.log("proveedores:", JSON.stringify(data.proveedores, null, 2));
+  console.log("registroEmpaque:", JSON.stringify(data.registroEmpaque, null, 2));
+
   console.log(
-    "📦 Data recibida:",
+    "📊 Resumen:",
     JSON.stringify(
       {
         tieneCajas: !!data.cajas,
@@ -20,7 +28,10 @@ export const create = async (data) => {
         tieneInfoEmpaque: !!data.infoEmpaque,
         cantidadInfoEmpaque: data.infoEmpaque?.length,
         tieneProveedores: !!data.proveedores,
-        orden: data.registroEmpaque?.orden,
+        cantidadProveedores: data.proveedores?.length, // <-- AGREGAR ESTO
+        proveedoresConDiferente: data.proveedores?.filter(p => p.diferente && p.diferente.trim() !== '').length,
+        proveedoresSinDiferente: data.proveedores?.filter(p => !p.diferente || p.diferente.trim() === '').length,
+        orden: data.orden,
       },
       null,
       2,
@@ -34,7 +45,7 @@ export const create = async (data) => {
     const { cajas, infoEmpaque, proveedores, ...registroEmpaque } = data;
 
     // Validar que el array cajas exista y tenga elementos
-    if (!cajas || !Array.isArray(cajas) || cajas.length === 0) {
+    if (!Array.isArray(cajas)) {
       console.error("❌ Validación fallida: array cajas vacío o inválido");
       await transaction.rollback();
       throw new Error("El array 'cajas' es requerido y no puede estar vacío.");
@@ -88,23 +99,9 @@ export const create = async (data) => {
     }
     console.log(`✅ Proveedores creados exitosamente`);
 
-    // 4. Crear detalles de cajas
-    console.log("📦 Creando detalles de cajas...");
-    const resCajas = await createDetalleCaja(
-      cajas,
-      registroAreaEmpaque.id,
-      transaction,
-    );
-
-    if (!resCajas) {
-      console.error("❌ Falló creación de cajas");
-      await transaction.rollback();
-      throw new Error("No se pudo guardar el detalle de las cajas de empaque.");
-    }
-    console.log(`✅ Cajas creadas exitosamente`);
-
-    // 5. Actualizar bodega
+    // Después de tener cajas y proveedores, crea un objeto de conteos por fecha
     console.log("🏢 Actualizando bodega...");
+
     const tipoMap = {
       A: "tipo_a",
       B: "tipo_b",
@@ -116,28 +113,111 @@ export const create = async (data) => {
       P: "tipo_p",
     };
 
-    const conteoTipos = cajas.reduce((acc, caja) => {
+    // Inicializar objeto para conteos por fecha
+    const conteosPorFecha = {};
+
+    // 1. Procesar cajas normales (agrupar por fecha)
+    console.log("📦 Procesando cajas normales por fecha...");
+    cajas.forEach((caja) => {
+      const fecha = caja.fecha_produccion;
       const tipoOriginal = caja.caja?.toUpperCase();
       const columna = tipoMap[tipoOriginal];
+      const cantidad = caja.cantidad || 0;
 
-      if (columna) {
-        acc[columna] = (acc[columna] || 0) + (caja.cantidad || 0);
+      if (!fecha) {
+        console.log(`  ⚠️ Caja sin fecha: ${tipoOriginal} x${cantidad}`);
+        return;
       }
-      return acc;
-    }, {});
 
-    console.log("📊 Conteo por tipos:", conteoTipos);
+      if (!conteosPorFecha[fecha]) {
+        conteosPorFecha[fecha] = {
+          tipo_a: 0,
+          tipo_b: 0,
+          tipo_c: 0,
+          tipo_af: 0,
+          tipo_bh: 0,
+          tipo_xl: 0,
+          tipo_cil: 0,
+          tipo_p: 0,
+        };
+      }
 
-    // Crear registros en Bodega por cada fecha y orden
-    const fechas = [...new Set(infoEmpaque.map((r) => r.fecha_produccion))];
+      if (columna && cantidad > 0) {
+        conteosPorFecha[fecha][columna] =
+          (conteosPorFecha[fecha][columna] || 0) + cantidad;
+      }
+    });
+
+    console.log("📊 Conteo por fechas (cajas normales):", conteosPorFecha);
+
+    // 2. Procesar referencias diferentes de proveedores (necesitan su propia fecha)
+    console.log("🔄 Procesando referencias diferentes de proveedores...");
+
+    proveedores.forEach((proveedor, index) => {
+      // Verificar si tiene el campo diferente y no está vacío
+      if (proveedor.diferente && proveedor.diferente.trim() !== "") {
+        const [referencia, cantidad] = proveedor.diferente.split(",");
+        const cantidadNumerica = parseInt(cantidad) || 0;
+
+        const fechaProveedor = proveedor.fecha_produccion; 
+
+        if (!fechaProveedor) {
+          console.log(
+            `  ⚠️ Proveedor #${index} con diferente pero sin fecha, no se puede asignar a bodega`,
+          );
+          return;
+        }
+
+        if (referencia && cantidadNumerica > 0) {
+          const tipoRef = referencia.trim().toUpperCase();
+          const columna = tipoMap[tipoRef];
+
+          // Asegurar que existe el objeto para esta fecha
+          if (!conteosPorFecha[fechaProveedor]) {
+            conteosPorFecha[fechaProveedor] = {
+              tipo_a: 0,
+              tipo_b: 0,
+              tipo_c: 0,
+              tipo_af: 0,
+              tipo_bh: 0,
+              tipo_xl: 0,
+              tipo_cil: 0,
+              tipo_p: 0,
+            };
+          }
+
+          if (columna) {
+            conteosPorFecha[fechaProveedor][columna] =
+              (conteosPorFecha[fechaProveedor][columna] || 0) +
+              cantidadNumerica;
+            console.log(
+              `  ✅ Proveedor #${index}: Agregando ${cantidadNumerica} cajas de referencia ${tipoRef} a fecha ${fechaProveedor}`,
+            );
+          } else {
+            console.log(
+              `  ⚠️ Proveedor #${index}: Tipo de referencia ${tipoRef} no está mapeado`,
+            );
+          }
+        }
+      } else {
+        console.log(`  ℹ️ Proveedor #${index}: Sin referencia diferente`);
+      }
+    });
+
+    console.log("📊 Conteo final por fechas:", conteosPorFecha);
+
+    // 3. Procesar cada fecha con sus propios conteos
+    const fechas = Object.keys(conteosPorFecha);
     console.log(`📅 Procesando ${fechas.length} fechas para bodega`);
 
     for (const fecha of fechas) {
       console.log(`  🔍 Buscando/creando registro para fecha: ${fecha}`);
+
       const [bodegaRegistro, created] = await Bodega.findOrCreate({
         where: {
           fecha_produccion: fecha,
           orden: registroEmpaque.orden,
+          estado: 1,
         },
         defaults: {
           fecha_produccion: fecha,
@@ -155,20 +235,27 @@ export const create = async (data) => {
         transaction,
       });
 
+      const conteosParaEstaFecha = conteosPorFecha[fecha];
+
       if (!created) {
         console.log(
           `  📝 Actualizando registro existente para fecha: ${fecha}`,
         );
         const updates = {};
-        Object.keys(conteoTipos).forEach((columna) => {
-          updates[columna] = sequelize.literal(
-            `${columna} + ${conteoTipos[columna]}`,
-          );
+        Object.keys(conteosParaEstaFecha).forEach((columna) => {
+          if (conteosParaEstaFecha[columna] > 0) {
+            updates[columna] = sequelize.literal(
+              `${columna} + ${conteosParaEstaFecha[columna]}`,
+            );
+          }
         });
-        await bodegaRegistro.update(updates, { transaction });
+
+        if (Object.keys(updates).length > 0) {
+          await bodegaRegistro.update(updates, { transaction });
+        }
       } else {
         console.log(`  ✨ Creando nuevo registro para fecha: ${fecha}`);
-        await bodegaRegistro.update(conteoTipos, { transaction });
+        await bodegaRegistro.update(conteosParaEstaFecha, { transaction });
       }
     }
     console.log("✅ Bodega actualizada exitosamente");
@@ -268,23 +355,46 @@ const createDetalleCaja = async (cajas, id, transaction) => {
 };
 
 const createDetalleProveedor = async (proveedores, id, transaction) => {
-  const detalleProveedor = [];
+  console.log("=== INICIO createDetalleProveedor ===");
+  console.log("ID Empaque:", id);
+  console.log("Proveedores recibidos:", JSON.stringify(proveedores, null, 2));
 
-  for (const detalle of proveedores) {
+  for (let i = 0; i < proveedores.length; i++) {
+    const detalle = proveedores[i];
+
+    console.log(`\n--- Proveedor ${i} ---`);
+    console.log("Objeto completo:", detalle);
+    console.log(
+      "Campo 'diferente' existe?:",
+      Object.prototype.hasOwnProperty.call(detalle, "diferente"),
+    );
+    console.log("Valor de 'diferente':", detalle.diferente);
+    console.log("Tipo de 'diferente':", typeof detalle.diferente);
+
     const detalleConId = {
       ...detalle,
       id_empaque: id,
     };
 
-    const detalleInsertado = await proveedoresEmpaque.create(detalleConId, {
-      transaction,
+    console.log("Objeto a insertar:", {
+      ...detalleConId,
+      // Resaltamos el campo diferente
+      diferente: detalleConId.diferente,
     });
-    detalleProveedor.push(detalleInsertado);
+
+    try {
+      const resultado = await proveedoresEmpaque.create(detalleConId, {
+        transaction,
+      });
+      console.log("✅ Insertado ID:", resultado.id);
+      console.log("✅ Diferente guardado:", resultado.diferente);
+    } catch (error) {
+      console.error("❌ Error:", error.message);
+      throw error;
+    }
   }
 
-  if (!detalleProveedor || detalleProveedor.length == 0) {
-    return false;
-  }
+  console.log("=== FIN createDetalleProveedor ===\n");
   return true;
 };
 
@@ -505,13 +615,14 @@ export const getDetalleEmpaque = async (id) => {
         "tipo",
         "fecha_produccion",
         "lote_proveedor",
+        "diferente", // INCLUIR EL NUEVO CAMPO
         [fn("SUM", col("cajas")), "totalCajas"],
         [fn("SUM", col("canastas")), "numero_canastas"],
         [fn("SUM", col("rechazo")), "totalRechazo"],
         [fn("SUM", col("migas")), "totalMigas"],
       ],
       where: { id_empaque: id },
-      group: ["lote_proveedor", "tipo", "fecha_produccion"],
+      group: ["lote_proveedor", "tipo", "fecha_produccion", "diferente"],
       raw: true,
     });
 
@@ -521,8 +632,9 @@ export const getDetalleEmpaque = async (id) => {
       cajas: op.totalCajas,
       canastas: op.numero_canastas,
       tipo: op.tipo,
-      rechazo: op.totalRechazo.toFixed(1),
-      migas: op.totalMigas.toFixed(1),
+      rechazo: op.totalRechazo?.toFixed(1),
+      migas: op.totalMigas?.toFixed(1),
+      diferente: op.diferente || "", // INCLUIR EN LA RESPUESTA
     }));
 
     return {

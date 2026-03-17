@@ -409,20 +409,27 @@ elements.selecProveedores.addEventListener("change", function (e) {
     rechazo.removeAttribute("readonly");
 });
 
-// Modificar elements.inputCanastas.addEventListener
+// Después de elements.inputCanastas.addEventListener
 elements.inputCanastas.addEventListener("input", (e) => {
     const valor = parseInt(e.target.value) || 0;
     if (!valor) {
         const migas = document.querySelector("#migas");
         const cajas = document.querySelector("#cajas");
         const rechazo = document.querySelector("#rechazo");
+        const cajasDiferente = document.querySelector("#cajas_diferente");
+        const referenciaDiferente = document.querySelector("#referencia_diferente");
 
         migas.setAttribute("readonly", "");
         cajas.setAttribute("readonly", "");
         rechazo.setAttribute("readonly", "");
+        cajasDiferente.setAttribute("readonly", "");
+        referenciaDiferente.setAttribute("disabled", "");
+        
         migas.value = "";
         cajas.value = "";
         rechazo.value = "";
+        cajasDiferente.value = "";
+        referenciaDiferente.value = "";
         return;
     }
 
@@ -430,6 +437,8 @@ elements.inputCanastas.addEventListener("input", (e) => {
     const migas = document.querySelector("#migas");
     const cajas = document.querySelector("#cajas");
     const rechazo = document.querySelector("#rechazo");
+    const cajasDiferente = document.querySelector("#cajas_diferente");
+    const referenciaDiferente = document.querySelector("#referencia_diferente");
 
     if (valor > maxCanastas) {
         Swal.fire({
@@ -444,9 +453,14 @@ elements.inputCanastas.addEventListener("input", (e) => {
         migas.setAttribute("readonly", "");
         cajas.setAttribute("readonly", "");
         rechazo.setAttribute("readonly", "");
+        cajasDiferente.setAttribute("readonly", "");
+        referenciaDiferente.setAttribute("disabled", "");
+        
         migas.value = "";
         cajas.value = "";
         rechazo.value = "";
+        cajasDiferente.value = "";
+        referenciaDiferente.value = "";
         e.target.value = "";
         return;
     }
@@ -454,96 +468,122 @@ elements.inputCanastas.addEventListener("input", (e) => {
     migas.removeAttribute("readonly");
     cajas.removeAttribute("readonly");
     rechazo.removeAttribute("readonly");
+    cajasDiferente.removeAttribute("readonly");
+    referenciaDiferente.removeAttribute("disabled");
 });
 
-// Modificar agregarFila
+// Habilitar/deshabilitar campo cajas_diferente basado en selección de referencia
+document.getElementById("referencia_diferente").addEventListener("change", function(e) {
+    const cajasDiferente = document.getElementById("cajas_diferente");
+    if (e.target.value) {
+        cajasDiferente.removeAttribute("readonly");
+    } else {
+        cajasDiferente.setAttribute("readonly", "");
+        cajasDiferente.value = "";
+    }
+});
+
 function agregarFila() {
-     const loteProveedorSelect = document.querySelector(`#proveedores`);
-     const selectedProv = loteProveedorSelect.querySelector("option:checked");
+    const loteProveedorSelect = document.querySelector(`#proveedores`);
+    const selectedProv = loteProveedorSelect.querySelector("option:checked");
 
-     if (!selectedProv || !selectedProv.value) {
-         Swal.fire({
-             icon: "warning",
-             title: "Atención",
-             text: "Por favor, seleccione un proveedor.",
-         });
-         return;
-     }
+    if (!selectedProv || !selectedProv.value) {
+        Swal.fire({
+            icon: "warning",
+            title: "Atención",
+            text: "Por favor, seleccione un proveedor.",
+        });
+        return;
+    }
 
-     const id_proveedor = selectedProv?.getAttribute("data-id");
-     const fechaProduccion = document.querySelector(`#fechaProduccion`).value;
+    const id_proveedor = selectedProv?.getAttribute("data-id");
+    const fechaProduccion = document.querySelector(`#fechaProduccion`).value;
 
-     const select = document.getElementById("lotes");
-     const selectedOption = select.querySelector("option:checked");
-     const loteProduccion = selectedOption?.getAttribute(
-         "data-lote_produccion",
-     );
-     const tipo = select.value;
+    const select = document.getElementById("lotes");
+    const selectedOption = select.querySelector("option:checked");
+    const loteProduccion = selectedOption?.getAttribute("data-lote_produccion");
+    const tipo = select.value;
 
-     const campos = [`canastas`, `cajas`, `migas`, "rechazo"];
+    const campos = [`canastas`, `cajas`, `migas`, "rechazo"];
 
-     if (!validarCamposForm(campos)) {
-         Swal.fire({
-             icon: "error",
-             title: "Error",
-             text: "Por favor, complete los campos requeridos.",
-         });
-         return;
-     }
+    if (!validarCamposForm(campos)) {
+        Swal.fire({
+            icon: "error",
+            title: "Error",
+            text: "Por favor, complete los campos requeridos.",
+        });
+        return;
+    }
 
-     const canastas = parseInt(document.querySelector(`#canastas`).value) || 0;
-     const cajas = parseInt(document.querySelector(`#cajas`).value) || 0;
-     const migas = parseFloat(document.querySelector(`#migas`).value || 0);
-     const rechazo = parseFloat(document.querySelector(`#rechazo`).value || 0);
+    const canastas = parseInt(document.querySelector(`#canastas`).value) || 0;
+    const cajas = parseInt(document.querySelector(`#cajas`).value) || 0;
+    const migas = parseFloat(document.querySelector(`#migas`).value || 0);
+    const rechazo = parseFloat(document.querySelector(`#rechazo`).value || 0);
 
-     if (!canastas || canastas <= 0 || !cajas || cajas <= 0) {
-         Swal.fire({
-             icon: "warning",
-             title: "Atención",
-             text: "Ingrese datos válidos para canastas y cajas.",
-         });
-         return;
-     }
+    // NUEVOS CAMPOS
+    const referenciaDiferente =
+        document.querySelector(`#referencia_diferente`).value || null;
+    const cajasDiferente =
+        parseInt(document.querySelector(`#cajas_diferente`).value) || 0;
 
-     // Verificar contra el saldo GLOBAL
-     const inputCanastas = document.querySelector("#canastas");
+    if (!canastas || canastas <= 0) {
+        Swal.fire({
+            icon: "warning",
+            title: "Atención",
+            text: "Ingrese datos válidos para canastas y cajas.",
+        });
+        return;
+    }
 
-     // Calcular saldo disponible actualizado (considerando TODAS las filas de la fecha actual)
-     const fechaActual = document.querySelector(`#fechaProduccion`).value;
-     const saldoUsadoEnFecha = calcularSaldoUsadoPorFecha(fechaActual);
-     const saldoDisponible = saldoGlobalTotal - saldoUsadoEnFecha;
+    // Verificar contra el saldo GLOBAL
+    const inputCanastas = document.querySelector("#canastas");
 
-     if (canastas > saldoDisponible) {
-         Swal.fire({
-             icon: "warning",
-             title: "Atención",
-             text: `Solo hay ${saldoDisponible} canastillas disponibles de ${saldoGlobalTotal} totales.`,
-         });
-         return;
-     }
+    // Calcular saldo disponible actualizado (considerando TODAS las filas de la fecha actual)
+    const fechaActual = document.querySelector(`#fechaProduccion`).value;
+    const saldoUsadoEnFecha = calcularSaldoUsadoPorFecha(fechaActual);
+    const saldoDisponible = saldoGlobalTotal - saldoUsadoEnFecha;
 
-     // Actualizar saldo global usado (recalculado)
-     saldoGlobalUsado = saldoUsadoEnFecha + canastas;
+    if (canastas > saldoDisponible) {
+        Swal.fire({
+            icon: "warning",
+            title: "Atención",
+            text: `Solo hay ${saldoDisponible} canastillas disponibles de ${saldoGlobalTotal} totales.`,
+        });
+        return;
+    }
 
-     // Actualizar el atributo max del input de canastas
-     const nuevoSaldoDisponible = saldoGlobalTotal - saldoGlobalUsado;
-     inputCanastas.setAttribute("max", nuevoSaldoDisponible);
-     inputCanastas.setAttribute(
-         "placeholder",
-         `Disponible: ${nuevoSaldoDisponible} de ${saldoGlobalTotal}`,
-     );
+    // Si hay referencia diferente pero no hay cajas diferentes, mostrar advertencia
+    if (referenciaDiferente && cajasDiferente <= 0) {
+        Swal.fire({
+            icon: "warning",
+            title: "Atención",
+            text: "Ha seleccionado una referencia diferente pero no ha ingresado la cantidad de cajas.",
+        });
+        return;
+    }
 
-     console.log("Creando nueva fila");
-     console.log(
-         `Saldo global: Total=${saldoGlobalTotal}, Usado=${saldoGlobalUsado}, Restante=${nuevoSaldoDisponible}`,
-     );
+    // Actualizar saldo global usado (recalculado)
+    saldoGlobalUsado = saldoUsadoEnFecha + canastas;
 
-     // Actualizar UI del saldo global
-     mostrarSaldoGlobal();
+    // Actualizar el atributo max del input de canastas
+    const nuevoSaldoDisponible = saldoGlobalTotal - saldoGlobalUsado;
+    inputCanastas.setAttribute("max", nuevoSaldoDisponible);
+    inputCanastas.setAttribute(
+        "placeholder",
+        `Disponible: ${nuevoSaldoDisponible} de ${saldoGlobalTotal}`,
+    );
 
-     const newRow = document.createElement("tr");
+    console.log("Creando nueva fila");
+    console.log(
+        `Saldo global: Total=${saldoGlobalTotal}, Usado=${saldoGlobalUsado}, Restante=${nuevoSaldoDisponible}`,
+    );
 
-    // Celdas
+    // Actualizar UI del saldo global
+    mostrarSaldoGlobal();
+
+    const newRow = document.createElement("tr");
+
+    // Celdas (incluyendo nuevas columnas)
     const tdFechaProduccion = document.createElement("td");
     tdFechaProduccion.textContent = fechaProduccion;
 
@@ -558,6 +598,13 @@ function agregarFila() {
 
     const tdCajas = document.createElement("td");
     tdCajas.textContent = cajas;
+
+    // NUEVAS CELDAS
+    const tdRefDiferente = document.createElement("td");
+    tdRefDiferente.textContent = referenciaDiferente || "-";
+
+    const tdCajasDiferente = document.createElement("td");
+    tdCajasDiferente.textContent = cajasDiferente > 0 ? cajasDiferente : "-";
 
     const tdRechazo = document.createElement("td");
     tdRechazo.textContent = rechazo.toFixed(1);
@@ -613,6 +660,23 @@ function agregarFila() {
     inputCajasHidden.name = "cajas[]";
     tdCajas.appendChild(inputCajasHidden);
 
+    // NUEVOS INPUTS HIDDEN
+    if (referenciaDiferente) {
+        const inputRefDiferente = document.createElement("input");
+        inputRefDiferente.type = "hidden";
+        inputRefDiferente.value = referenciaDiferente;
+        inputRefDiferente.name = "referencia_diferente[]";
+        tdRefDiferente.appendChild(inputRefDiferente);
+    }
+
+    if (cajasDiferente > 0) {
+        const inputCajasDiferente = document.createElement("input");
+        inputCajasDiferente.type = "hidden";
+        inputCajasDiferente.value = cajasDiferente;
+        inputCajasDiferente.name = "cajas_diferente[]";
+        tdCajasDiferente.appendChild(inputCajasDiferente);
+    }
+
     const inputRechazoHidden = document.createElement("input");
     inputRechazoHidden.type = "hidden";
     inputRechazoHidden.value = rechazo;
@@ -631,6 +695,8 @@ function agregarFila() {
     newRow.appendChild(tdTipo);
     newRow.appendChild(tdCanastas);
     newRow.appendChild(tdCajas);
+    newRow.appendChild(tdRefDiferente); // Nueva columna
+    newRow.appendChild(tdCajasDiferente); // Nueva columna
     newRow.appendChild(tdRechazo);
     newRow.appendChild(tdMigas);
     newRow.appendChild(tdBtnBorrar);
@@ -641,6 +707,11 @@ function agregarFila() {
     inputCanastas.value = "";
     limpiarInputs();
     loteProveedorSelect.selectedIndex = 0;
+
+    // Limpiar nuevos campos
+    document.querySelector("#referencia_diferente").value = "";
+    document.querySelector("#cajas_diferente").value = "";
+    document.querySelector("#cajas_diferente").setAttribute("readonly", "");
 
     // Actualizar totales
     updateTotales();
@@ -682,9 +753,9 @@ function eliminarFila(btn) {
     console.log(`Fila eliminada. Saldo global: Total=${saldoGlobalTotal}, Usado=${saldoGlobalUsado}, Restante=${nuevoSaldoDisponible}`);
 }
 
-// Modificar limpiarInputs
 function limpiarInputs() {
-    const inputs = ["canastas", "cajas", "migas", "rechazo"];
+    const inputs = ["canastas", "cajas", "migas", "rechazo", "cajas_diferente"];
+    const selects = ["referencia_diferente"];
 
     inputs.forEach((id) => {
         const input = document.getElementById(id);
@@ -695,78 +766,31 @@ function limpiarInputs() {
         }
     });
 
+    selects.forEach((id) => {
+        const select = document.getElementById(id);
+        if (select) {
+            select.value = "";
+            select.setAttribute("disabled", "");
+        }
+    });
+
     const inptCanastas = document.querySelector(`#canastas`);
     const fechaActual = document.querySelector(`#fechaProduccion`).value;
-    
+
     if (fechaActual && saldoGlobalTotal > 0) {
         const saldoUsadoEnFecha = calcularSaldoUsadoPorFecha(fechaActual);
         const saldoDisponible = saldoGlobalTotal - saldoUsadoEnFecha;
-        
+
         inptCanastas.setAttribute("max", saldoDisponible);
-        inptCanastas.setAttribute("placeholder", `Disponible: ${saldoDisponible} de ${saldoGlobalTotal}`);
+        inptCanastas.setAttribute(
+            "placeholder",
+            `Disponible: ${saldoDisponible} de ${saldoGlobalTotal}`,
+        );
         inptCanastas.dataset.saldoDisponible = saldoDisponible;
     } else {
         inptCanastas.setAttribute("max", "0");
         inptCanastas.setAttribute("placeholder", "Seleccione fecha primero");
     }
-}
-
-// Función para calcular cuánto del saldo total se ha usado en la tabla actual (por si la necesitas)
-function calcularSaldoUsadoEnTabla(loteProduccion, tipo) {
-    let totalUsado = 0;
-    const filas = document.querySelectorAll("#tablaInfo tbody tr");
-
-    filas.forEach((row) => {
-        const loteProdInput = row.querySelector(
-            'input[name="lote_produccion[]"]',
-        );
-        const tipoInput = row.querySelector('input[name="tipo[]"]');
-        const canastasInput = row.querySelector('input[name="canastas[]"]');
-
-        if (loteProdInput && tipoInput && canastasInput) {
-            if (
-                loteProdInput.value === loteProduccion &&
-                tipoInput.value === tipo
-            ) {
-                totalUsado += parseInt(canastasInput.value) || 0;
-            }
-        }
-    });
-
-    return totalUsado;
-}
-
-// Actualizar la función calcularCanastasUsadas (por si la necesitas)
-function calcularCanastasUsadas(loteProveedor, tipo, loteProduccion) {
-    let totalUsadas = 0;
-    const filas = document.querySelectorAll("#tablaInfo tbody tr");
-
-    filas.forEach((row) => {
-        const loteProvInput = row.querySelector(
-            'input[name="lote_proveedor[]"]',
-        );
-        const tipoInput = row.querySelector('input[name="tipo[]"]');
-        const loteProdInput = row.querySelector(
-            'input[name="lote_produccion[]"]',
-        );
-
-        if (loteProvInput && tipoInput && loteProdInput) {
-            if (
-                loteProvInput.value === loteProveedor &&
-                tipoInput.value === tipo &&
-                loteProdInput.value === loteProduccion
-            ) {
-                const canastasInput = row.querySelector(
-                    'input[name="canastas[]"]',
-                );
-                if (canastasInput) {
-                    totalUsadas += parseInt(canastasInput.value) || 0;
-                }
-            }
-        }
-    });
-
-    return totalUsadas;
 }
 
 function updateTotales() {
@@ -780,24 +804,61 @@ function updateTotales() {
     filas.forEach((fila) => {
         const canastasInput = fila.querySelector('input[name="canastas[]"]');
         const cajasInput = fila.querySelector('input[name="cajas[]"]');
+        const cajasDiferenteInput = fila.querySelector(
+            'input[name="cajas_diferente[]"]',
+        ); // <-- Input de cajas diferentes
         const rechazoInput = fila.querySelector('input[name="rechazo[]"]');
         const migasInput = fila.querySelector('input[name="migas[]"]');
 
         if (canastasInput && cajasInput && rechazoInput && migasInput) {
             totalCanastas += parseInt(canastasInput.value) || 0;
-            totalCajas += parseInt(cajasInput.value) || 0;
+            totalCajas += parseInt(cajasInput.value) || 0; // Cajas normales
+
+            // SUMAR CAJAS DIFERENTES SI EXISTEN
+            if (cajasDiferenteInput) {
+                totalCajas += parseInt(cajasDiferenteInput.value) || 0;
+            }
+
             totalRechazo += parseFloat(rechazoInput.value) || 0;
             totalMigas += parseFloat(migasInput.value) || 0;
         }
     });
 
     document.getElementById("totalCanastas").value = totalCanastas;
-    document.getElementById("totalCajas").value = totalCajas;
+    document.getElementById("totalCajas").value = totalCajas; // Ahora incluye normales + diferentes
     document.getElementById("totalRechazo").value = totalRechazo.toFixed(1);
     document.getElementById("totalMigas").value = totalMigas.toFixed(1);
 
-    console.log(`TOTALES: ${totalCanastas} canastas, ${totalCajas} cajas`);
+    console.log(
+        `TOTALES: ${totalCanastas} canastas, ${totalCajas} cajas (incluye diferentes)`,
+    );
 }
+
+// Generar lote de empaque automáticamente al seleccionar fecha
+document.getElementById("fecha").addEventListener("change", function(e) {
+    const fecha = e.target.value;
+    if (fecha) {
+        // Convertir fecha de YYYY-MM-DD a DDMMYY
+        const partes = fecha.split('-');
+        const año = partes[0].slice(-2); // Últimos 2 dígitos del año
+        const mes = partes[1];
+        const dia = partes[2];
+        
+        // Formato: DDMMYY
+        const fechaFormateada = dia + mes + año;
+        
+        // Generar lote: LE + fechaFormateada
+        const loteEmpaque = "LE" + fechaFormateada;
+        
+        // Asignar al campo lote_empaque
+        document.getElementById("lote_empaque").value = loteEmpaque;
+        
+        console.log(`Lote de empaque generado: ${loteEmpaque}`);
+    } else {
+        // Si se borra la fecha, limpiar el campo lote
+        document.getElementById("lote_empaque").value = "";
+    }
+});
 
 function obtenerInfoEmpaque() {
     infoEmpaque = [];
@@ -831,12 +892,34 @@ function obtenerInfoEmpaque() {
             migas: fila.querySelector('input[name="migas[]"]'),
         };
 
+        var referenciaDiferenteFila = fila.querySelector(
+                'input[name="referencia_diferente[]"]',
+            );
+        var cajasDiferenteFila = fila.querySelector(
+                'input[name="cajas_diferente[]"]',
+            );
+
+        console.log(inputs)
+
         const todosPresentes = Object.values(inputs).every(
-            (input) => input !== null,
+            (input) => input !== null || input === undefined, // Los nuevos campos pueden ser null
         );
         if (!todosPresentes) {
             console.warn(`Fila ${index} no tiene todos los inputs necesarios`);
             return;
+        }
+
+        
+        const referenciaDiferente = referenciaDiferenteFila
+            ? referenciaDiferenteFila.value.trim()
+            : null;
+        const cajasDiferente = cajasDiferenteFila
+            ? parseInt(cajasDiferenteFila.value.trim())
+            : 0;
+
+        let diferente = "";
+        if (referenciaDiferente && cajasDiferente) {
+            diferente = `${referenciaDiferente},${cajasDiferente}`;
         }
 
         const detalleItem = {
@@ -849,6 +932,8 @@ function obtenerInfoEmpaque() {
             canastas: parseInt(inputs.canastas.value.trim()) || 0,
             rechazo: parseFloat(inputs.rechazo.value.trim()) || 0,
             migas: parseFloat(inputs.migas.value.trim()) || 0,
+
+            diferente: diferente,
         };
 
         detalleArray.push(detalleItem);
@@ -873,6 +958,7 @@ function obtenerInfoEmpaque() {
         loteActual.total_cajas += detalleItem.cajas;
         loteActual.total_rechazo += detalleItem.rechazo;
 
+        // Para el resumen de cajas, consideramos tanto cajas normales como diferentes
         const cajaKey = detalleItem.tipo;
         if (!cajasMap.has(cajaKey)) {
             cajasMap.set(cajaKey, {
@@ -883,6 +969,22 @@ function obtenerInfoEmpaque() {
 
         const cajaActual = cajasMap.get(cajaKey);
         cajaActual.cantidad += detalleItem.cajas;
+
+        // Si hay cajas diferentes, también las agregamos al resumen
+        if (
+            detalleItem.referencia_diferente &&
+            detalleItem.cajas_diferente > 0
+        ) {
+            const cajaDiffKey = detalleItem.referencia_diferente;
+            if (!cajasMap.has(cajaDiffKey)) {
+                cajasMap.set(cajaDiffKey, {
+                    caja: detalleItem.referencia_diferente,
+                    cantidad: 0,
+                });
+            }
+            const cajaDiffActual = cajasMap.get(cajaDiffKey);
+            cajaDiffActual.cantidad += detalleItem.cajas_diferente;
+        }
     });
 
     if (detalleArray.length === 0) {
@@ -996,7 +1098,6 @@ async function enviarFormulario() {
 
     if (
         infoEmpaque.length === 0 ||
-        cajas.length === 0 ||
         detalle.length === 0
     ) {
         Swal.fire({
